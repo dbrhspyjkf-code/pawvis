@@ -4,6 +4,12 @@ public enum MouseButton: String, Codable, Equatable, Sendable {
     case left, right, middle
 }
 
+/// The phase of a pinch-zoom stream, mirroring the IOHID event phases a
+/// real trackpad magnify gesture carries.
+public enum ZoomPhase: String, Equatable, Sendable {
+    case began, changed, ended
+}
+
 /// Discrete output of the gesture engine, consumed by the app's mouse
 /// controller. All positions are screen-normalized ([0,1], top-left origin).
 ///
@@ -23,6 +29,15 @@ public enum GestureEvent: Equatable, Sendable {
     /// (toward the left of the document, positive axis-2). `deltaX` stays 0
     /// unless horizontal scrolling is enabled. The cursor does not move.
     case scroll(deltaX: Double, deltaY: Double)
+    /// Pinch-zoom travel: the change in the spread between two pinching
+    /// hands, in screen-normalized units of distance. Positive = hands
+    /// moving apart = zoom in. Phaseful like a trackpad's magnify gesture:
+    /// one `.began` when the two-pinch pose engages, `.changed` per delta,
+    /// one `.ended` when the pose releases (or the engine unwinds, via
+    /// `forceRelease`) — apps receiving a magnify stream expect the phase
+    /// pair, so the engine guarantees it. Not a plain scroll event: the
+    /// app posts it as a synthesized IOHID zoom gesture.
+    case zoom(delta: Double, phase: ZoomPhase)
     /// The criss-cross tracking-off wave completed: the app should switch
     /// hand tracking off entirely (camera and all), exactly as the menu bar
     /// toggle does. `PawvisController` intercepts it before the rest of the
@@ -68,6 +83,9 @@ public struct OverlayState: Equatable, Sendable {
     /// True while the scroll pose is held: the cursor is parked
     /// and vertical hand movement scrolls.
     public var isScrolling: Bool = false
+    /// True while the two-hand pinch-zoom pose is held: the cursor is parked
+    /// and the spread between the pinches drives magnification.
+    public var isZooming: Bool = false
     /// Pinch strength ramp: 0 = tips comfortably apart, 1 = pinched. Drives the
     /// closing-ring feedback around the cursor. Pinned at 1 while *any*
     /// button is down — the ring says "you are pressing", not which finger.

@@ -127,6 +127,14 @@ struct GestureGuideView: View {
                 detail: "Fold your middle and ring fingers in — index and pinky stay up. \(direction)\(sideways) The cursor parks (with a light-blue ring) while the pose is held; relax your hand to let go."))
         }
 
+        if store.settings.gestures.zoomEnabled {
+            rows.append(Row(
+                symbol: "arrow.up.left.and.arrow.down.right.circle.fill",
+                panel: "full-zoom",
+                title: "Pinch zoom",
+                detail: "Show both hands open at once — fingers up, palms facing each other — and the claw parks (violet ring): you're holding a zoom. Move your hands apart to zoom in, together to zoom out, wherever the trackpad pinch works (Photos, Preview, maps, PDFs). Bring your hands all the way together and the view springs back to its original size. Keep the fingers together, not spread wide — spread fingers belong to the stop-tracking wave. Close either hand to let go."))
+        }
+
         if store.settings.gestures.crissCrossDisableEnabled {
             let crossings = store.settings.gestures.crissCrossDisableCrossings
             rows.append(Row(
