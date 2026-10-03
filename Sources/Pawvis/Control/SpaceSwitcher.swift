@@ -106,22 +106,18 @@ final class SpaceSwitcher {
         return displays.first(where: { $0.identifier == pointerUUID })
     }
 
-    /// The neighboring *desktop* in the given direction, skipping the
-    /// full-screen app spaces that share the ring: the action is named
-    /// "desktop", and landing on someone's full-screen window reads as
-    /// window shuffling, not desktop switching. Works from a full-screen
-    /// space too (you flung mid-movie): the scan just continues to the
-    /// nearest desktop on that side. nil when there is none.
+    /// The neighboring *space* in the given direction — desktops AND
+    /// full-screen apps alike, the exact ring order Mission Control shows.
+    /// This used to skip full-screen spaces ("switching desktops" reading
+    /// as window shuffling), but the ⌃+fn arrow route walks one ring entry
+    /// per press and users expect exactly what the system trackpad swipe
+    /// does: the neighbor, whatever it is. nil at the ring's edge.
     nonisolated static func neighborDesktop(in spaces: [Space], active: UInt64,
                                             direction: Direction) -> UInt64? {
         guard let current = spaces.firstIndex(where: { $0.id == active }) else { return nil }
-        let step = direction == .left ? -1 : 1
-        var target = current + step
-        while target >= 0 && target < spaces.count {
-            if spaces[target].isDesktop { return spaces[target].id }
-            target += step
-        }
-        return nil
+        let target = current + (direction == .left ? -1 : 1)
+        guard target >= 0, target < spaces.count else { return nil }
+        return spaces[target].id
     }
 
     /// How many swipe steps reach `target`: the swipe walks every ring
@@ -141,13 +137,25 @@ final class SpaceSwitcher {
             .takeRetainedValue() as? [[String: Any]] else { return nil }
         let displays = dicts.compactMap { display -> DisplayRing? in
             guard let identifier = display["Display Identifier"] as? String,
-                  let current = ((display["Current Space"] as? [String: Any])?["id64"]
-                                 as? NSNumber)?.uint64Value,
                   let spaceDicts = display["Spaces"] as? [[String: Any]] else { return nil }
             let spaces = spaceDicts.compactMap { dict -> Space? in
                 guard let id = (dict["id64"] as? NSNumber)?.uint64Value else { return nil }
                 return Space(id: id, isDesktop: ((dict["type"] as? NSNumber)?.intValue ?? 0) == 0)
             }
+            // "Current Space" flattens nested tile/wall dicts, and their
+            // id64s leak into it (a full-screen space reads its TILE's id
+            // first — measured: current=33 while the ring holds 31).
+            // ManagedSpaceID is the space itself at every level, so prefer
+            // it; id64 stays as the single-space fallback.
+            let currentDict = display["Current Space"] as? [String: Any]
+            let managed = (currentDict?["ManagedSpaceID"] as? NSNumber)?.uint64Value
+            let raw = (currentDict?["id64"] as? NSNumber)?.uint64Value
+            // Whatever we read must be one of the ring's own ids; a tile id
+            // isn't, and walking from it is meaningless.
+            let candidates = [managed, raw].compactMap { $0 }
+            guard let current = candidates.first(where: { id in
+                spaces.contains { $0.id == id }
+            }) else { return nil }
             return DisplayRing(identifier: identifier, current: current, spaces: spaces)
         }
         return displays.isEmpty ? nil : displays
@@ -266,7 +274,7 @@ final class SpaceSwitcher {
                                                 direction: direction) else {
             return direction == .left ? "No desktop to the left" : "No desktop to the right"
         }
-        let steps = Self.swipeSteps(in: display.spaces, from: display.current, to: target) ?? 1
+        let steps = 1 // the neighbor is adjacent by construction now
 
         // A leftover overlay would eat the keys; clear it first.
         if Self.missionControlIsOpen() {
