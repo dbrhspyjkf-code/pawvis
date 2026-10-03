@@ -57,6 +57,12 @@ public final class GestureEngine {
                 // measure its first delta against a stale anchor.
                 scroll = ScrollState()
             }
+            if config.zoomEnabled != oldValue.zoomEnabled {
+                // Off mid-zoom: end the magnify stream at once (an app left
+                // mid-gesture keeps zooming on the next `.began` otherwise)
+                // and drop the anchor, so a re-enable re-seeds from scratch.
+                pendingEvents += endZoomIfActive()
+            }
             if config.dwellClickEnabled != oldValue.dwellClickEnabled {
                 // Off mid-dwell: the timer dies with the switch. On: a fresh
                 // settle starts it from zero.
@@ -186,6 +192,40 @@ public final class GestureEngine {
         var anchor: Vec2?
     }
 
+    /// The two-hand pinch-zoom's state: both hands pinch (thumb + index),
+    /// the spread between the pinches drives magnification. Same shape as
+    /// the scroll pose's machine — strict engage, loose hold, debounce both
+    /// ways — plus a scalar anchor for the spread.
+    private struct ZoomState {
+        var active = false
+        var engageFrames = 0
+        var releaseFrames = 0
+        /// The spread (distance between the palm centers) the next delta is
+        /// measured against; nil until the first frame after activation
+        /// seeds it.
+        var anchor: Double?
+        /// When both hands were last tracked, for the mid-zoom dropout grace
+        /// (a partner Vision drops while the hands overlap).
+        var lastPairTime: TimeInterval = -.infinity
+        /// Net travel emitted since engage (positive = zoomed in). The
+        /// snap-home sequence owes this back, plus `zoomResetMargin`.
+        var netEmitted: Double = 0
+        /// Remaining negative travel the snap-home sequence still owes; nil
+        /// when no sequence is running. Closing the hands all the way means
+        /// "back to the size I started at": the sequence pays back
+        /// everything this zoom emitted plus a margin that pushes the app to
+        /// its fit floor (over-shrinking is clamped by every pinch-aware
+        /// app, which is exactly the original size).
+        var resetRemaining: Double?
+        /// True once the snap-home has run: holding the hands closed keeps
+        /// the zoom parked at home (no re-trigger loop), and opening back
+        /// past the reset band re-arms ordinary incremental zooming.
+        var homed = false
+        /// Consecutive frames with the palms closed all the way — the
+        /// snap-home trigger, debounced like every transition.
+        var resetFrames = 0
+    }
+
     /// The dwell click's state: where the cursor settled, when, and whether
     /// the last dwell's click is still waiting for the cursor to move away.
     private struct DwellState {
@@ -261,7 +301,7 @@ public final class GestureEngine {
     /// residual drift can actually satisfy it.
     private static let dwellRadius = 0.02
 
-    /// Palms must stand at least this far apart (screen-normalized x) to
+    /// Palms must stand at least this far apart (screen-normalized) to
     /// count as being on distinct sides for the criss-cross wave. Inside the
     /// band the hands are mid-crossing and their order is ambiguous — frames
     /// there neither count nor reset.
@@ -270,6 +310,24 @@ public final class GestureEngine {
     /// this long resets the gesture, so a static double high-five can't
     /// park the cursor (or block the buttons) forever.
     private static let crissCrossTimeout: TimeInterval = 2.0
+
+    /// The two-hand spread zoom engages only with the palms at least this
+    /// far apart (screen-normalized distance): two hands resting close
+    /// together is typing-adjacent, not a caliper.
+    private static let zoomEngageSeparation = 0.12
+    /// Closing the palms below this (screen-normalized) starts the
+    /// snap-home sequence: "hands together = back to the original size".
+    /// Deliberately below the engage separation, so the zoom never engages
+    /// and immediately snap-homes.
+    private static let zoomResetSpread = 0.09
+    /// Extra negative travel the snap-home sequence adds beyond paying back
+    /// what this zoom emitted — enough to drive any pinch-aware app to its
+    /// fit floor (the original size), where further shrinking is clamped.
+    private static let zoomResetMargin = 2.5
+    /// Per-frame travel of the snap-home sequence, in the engine's
+    /// normalized units: ~1 s of payback for a typical session at 30 fps,
+    /// smooth enough to read as a deliberate release rather than a jump.
+    private static let zoomResetStep = 0.06
 
     private var slots: [HandSlot]
     private var primarySlotID: Int?
@@ -304,6 +362,7 @@ public final class GestureEngine {
     private var rightButton = ButtonState()
     private var middleButton = ButtonState()
     private var scroll = ScrollState()
+    private var zoom = ZoomState()
     private var dwell = DwellState()
     private var crissCross = CrissCrossState()
     /// EMA of the primary hand's raw camera-space scale; nil until a hand is
@@ -335,6 +394,10 @@ public final class GestureEngine {
         leftButton = ButtonState()
         rightButton = ButtonState()
         middleButton = ButtonState()
+        // A zoom in flight ends here too: stopTracking, the lock screen, the
+        // attention pause and the tracking-loss grace all route through this
+        // one release path, and none of them may leave an app mid-magnify.
+        events += endZoomIfActive()
         // A forced release must not chain into a double-click.
         lastUpTime = -.infinity
         _ = time
@@ -344,6 +407,7 @@ public final class GestureEngine {
     public func reset() {
         _ = forceRelease(at: 0)
         scroll = ScrollState()
+        zoom = ZoomState()
         dwell = DwellState()
         crissCross = CrissCrossState()
         customDetector.reset()
@@ -390,6 +454,7 @@ public final class GestureEngine {
             if updateCrissCross(tracked, at: frame.time) {
                 events.append(.disableTracking)
             }
+            updateZoom(tracked, at: frame.time, events: &events)
             events += processCustomGestures(tracked, at: frame.time)
             overlay.hands = overlayHands(tracked)
             overlay.armed = armed
@@ -398,6 +463,7 @@ public final class GestureEngine {
             overlay.rightGrabbed = rightButton.engaged
             overlay.isDragging = press?.dragging ?? false
             overlay.isScrolling = scroll.active
+            overlay.isZooming = zoom.active
             overlay.closingProgress = closingProgress(for: nil)
             return (events, overlay)
         }
@@ -430,6 +496,12 @@ public final class GestureEngine {
         // 4. The scroll pose's own arm/park state machine. Before the cursor
         // step because an active scroll parks the cursor.
         updateScroll(features)
+
+        // 4¼. The two-hand pinch-zoom's state machine, watching every tracked
+        // hand like the wave below (the second pinch is by definition not
+        // the primary). Also before the cursor step: an active zoom parks
+        // the cursor, and its `.began` must precede the deltas it frames.
+        updateZoom(tracked, at: frame.time, events: &events)
 
         // 4½. The criss-cross tracking-off wave watches every tracked hand,
         // armed or not — stopping tracking must not require cursor control.
@@ -485,6 +557,69 @@ public final class GestureEngine {
                 } else {
                     scroll.anchor = pointer
                 }
+            } else if zoom.active {
+                // The two-hand spread zoom: the spread between the palm
+                // centers drives magnification, anchored and deadbanded like
+                // a scroll — shimmer emits nothing, slow travel accumulates
+                // against the unmoved anchor. Hands apart (spread growing) =
+                // zoom in, mirroring the trackpad pinch. The cursor parks
+                // while the pose holds.
+                //
+                // Closing the hands ALL the way is the snap-home: the
+                // sequence pays back everything this zoom emitted plus a
+                // margin that drives the app to its fit floor — "hands
+                // together = back to the size I started at". Over-shrinking
+                // is clamped by the app, which is exactly the original
+                // size; a deliberate release rather than an unbounded one.
+                if zoom.resetRemaining != nil {
+                    var remaining = zoom.resetRemaining ?? 0
+                    let step = min(Self.zoomResetStep, remaining)
+                    remaining -= step
+                    zoom.resetRemaining = remaining > 0.0001 ? remaining : nil
+                    if step > 0 {
+                        events.append(.zoom(delta: -step, phase: .changed))
+                    }
+                    // Opening back up aborts the payback: the hands are
+                    // zooming again, re-anchored from where they are now.
+                    if let spread = palmSpread(tracked), spread > Self.zoomResetSpread + 0.03 {
+                        zoom.resetRemaining = nil
+                        zoom.homed = false
+                        zoom.anchor = spread
+                        zoom.netEmitted = 0
+                    }
+                } else if let spread = palmSpread(tracked) {
+                    if spread <= Self.zoomResetSpread {
+                        // Closed all the way, debounced, and not already
+                        // home: start the payback. `homed` keeps a held
+                        // closed pose from re-triggering the sequence every
+                        // time the previous one finishes.
+                        zoom.resetFrames += 1
+                        if !zoom.homed, zoom.resetFrames >= config.pinchDebounceFrames {
+                            zoom.resetFrames = 0
+                            zoom.homed = true
+                            zoom.resetRemaining = max(zoom.netEmitted, 0) + Self.zoomResetMargin
+                            zoom.anchor = spread
+                        }
+                    } else {
+                        zoom.resetFrames = 0
+                        if zoom.homed {
+                            // Opening back up re-arms incremental zooming,
+                            // with the ledger wiped clean.
+                            zoom.homed = false
+                            zoom.netEmitted = 0
+                        }
+                        if let anchor = zoom.anchor {
+                            let travel = spread - anchor
+                            if abs(travel) >= config.jitterDeadband {
+                                zoom.anchor = spread
+                                zoom.netEmitted += travel
+                                events.append(.zoom(delta: travel, phase: .changed))
+                            }
+                        } else {
+                            zoom.anchor = spread
+                        }
+                    }
+                }
             } else if crissCrossParked {
                 // The wave is in progress: the cursor parks so hands trading
                 // sides don't fling it across the screen (the scroll park's
@@ -536,6 +671,13 @@ public final class GestureEngine {
         // gesture must not also be a click. Engage-only, as always.
         let trainedDwellBlock = trainedDetector.config.overridesMouse
             && trainedDetector.candidateActive
+        // An active zoom blocks every button's engage (mode exclusivity,
+        // like an active scroll). The forming phase deliberately does NOT:
+        // open palms read as no dip at all, and a pre-debounce block would
+        // veto genuine clicks whenever the second hand happened to rest
+        // open in frame — a regression the pinch design needed and this
+        // pose cannot.
+        let zoomBlocked = zoom.active
         let ratio = armed ? clickRatio(features) : nil
         if armed {
             let rightHeld = isHeld(.right)
@@ -545,7 +687,7 @@ public final class GestureEngine {
                          confident: engageConfident(primary.hand),
                          blocked: rightHeld || middleHeld || scroll.active
                              || crissCross.engaged || sweeping || pointedParked
-                             || trainedDwellBlock,
+                             || trainedDwellBlock || zoomBlocked,
                          at: frame.time, events: &events)
             let leftHeld = isHeld(.left)
             updateButton(.right, state: &rightButton, ratio: rightRatio(features),
@@ -554,7 +696,8 @@ public final class GestureEngine {
                          blocked: leftHeld || middleHeld || scroll.active
                              || crissCross.engaged
                              || scrollPoseBlocksDip(of: config.rightClickFinger, features)
-                             || sweeping || pointedParked || trainedDwellBlock,
+                             || sweeping || pointedParked || trainedDwellBlock
+                             || zoomBlocked,
                          at: frame.time, events: &events)
             updateButton(.middle, state: &middleButton, ratio: middleRatio(features),
                          engage: config.middleEngageRatio, release: config.middleReleaseRatio,
@@ -562,7 +705,8 @@ public final class GestureEngine {
                          blocked: isHeld(.left) || isHeld(.right) || scroll.active
                              || crissCross.engaged
                              || scrollPoseBlocksDip(of: config.middleClickFinger, features)
-                             || sweeping || pointedParked || trainedDwellBlock,
+                             || sweeping || pointedParked || trainedDwellBlock
+                             || zoomBlocked,
                          at: frame.time, events: &events)
         }
 
@@ -575,7 +719,8 @@ public final class GestureEngine {
             blocked: press != nil || leftButton.engaged || rightButton.engaged
                 || middleButton.engaged
                 || scroll.active || crissCross.engaged || grabParked
-                || pointedParked || trainedDwellBlock || !armed,
+                || pointedParked || trainedDwellBlock || !armed
+                || zoom.active,
             at: frame.time, events: &events)
 
         // 7. Fit the interaction box to the hand (auto reach). Last, so the
@@ -592,6 +737,7 @@ public final class GestureEngine {
         overlay.middleGrabbed = middleButton.engaged
         overlay.isDragging = press?.dragging ?? false
         overlay.isScrolling = scroll.active
+        overlay.isZooming = zoom.active
         overlay.closingProgress = closingProgress(for: ratio)
         overlay.dwellProgress = dwellProgress(at: frame.time)
 
@@ -796,7 +942,7 @@ public final class GestureEngine {
             return
         }
         guard press == nil, !leftButton.engaged, !rightButton.engaged,
-              !middleButton.engaged else {
+              !middleButton.engaged, !zoom.active else {
             scroll.engageFrames = 0
             return
         }
@@ -841,6 +987,144 @@ public final class GestureEngine {
         case .ring: return features.isExtended(.middle) != true
         case .index, .little: return false
         }
+    }
+
+    // MARK: - Spread zoom
+
+    /// Whether one hand is in the zoom pose: genuinely open (all four
+    /// fingers extended at the openness floor — the same read the control
+    /// trigger arms on, so a resting half-curled bystander never counts as
+    /// half a caliper) and NOT splayed. The splay exclusion is the
+    /// criss-cross disambiguation: that wave demands fingers spread wide,
+    /// this mode demands them together-ish, so no pose can court both at
+    /// once and the modes can never steal each other's engage.
+    private func handIsZoomPose(_ features: HandFeatures?) -> Bool {
+        guard let features else { return false }
+        guard features.isOpenHand() else { return false }
+        guard let splay = features.splayAmount() else { return false }
+        return splay < config.poseThresholds.splayRatio
+    }
+
+    /// The two-hand spread-zoom state machine: both hands open and relaxed,
+    /// palms facing each other at least `zoomEngageSeparation` apart, held
+    /// for the debounce starts a zoom; the distance between the palms then
+    /// drives magnification — apart zooms in, together zooms out. Either
+    /// hand closing (fist-tending, 2+ fingers curled) for the debounce ends
+    /// it; the splay exclusion holds on the engage side only, so spreading
+    /// the fingers mid-zoom is a wiggle, not a stop. Strict engage at
+    /// engage-grade joint confidence (a guessed hand must not seize the
+    /// zoom, exactly as a guessed open hand must not seize the cursor),
+    /// loose hold at the permissive floor — the free hysteresis every held
+    /// pose gets. A press always wins (a zoom releases the moment a button
+    /// engages); an active scroll or an engaged criss-cross wave keeps it
+    /// out the same way; and a hand Vision drops mid-zoom gets the
+    /// tracking-loss grace, because Vision loses a hand exactly when the
+    /// two overlap mid-spread.
+    ///
+    /// Why open palms and not pinches, when the request was "pinch to
+    /// zoom": a pinched hand is the one pose Vision handles worst — the
+    /// overlapping tips read as low-confidence guesses (measured on a real
+    /// camera: pinch ratio 0.26 with thumb/index joint confidence 0.28 and
+    /// 0.35, under every engage floor), and most frames the contracted
+    /// hand is not detected at all (45 s of real pinches: single-digit
+    /// frames with any hand). That is the same lesson that retired the
+    /// pinch-click mode: the hand stays open and visible, so tracking
+    /// never guesses at overlapping fingers. Open palms carry the same
+    /// intuition (a caliper: two hands apart zoom in, together zoom out)
+    /// on the pose Vision tracks best.
+    private func updateZoom(_ tracked: [TrackedHand], at time: TimeInterval,
+                            events: inout [GestureEvent]) {
+        guard config.zoomEnabled, armed else {
+            // Disabled, or control parked: no zoom may run, and one in
+            // flight ends at once (the `.ended` phase is part of the
+            // contract, not decoration).
+            events += endZoomIfActive()
+            zoom.engageFrames = 0
+            zoom.releaseFrames = 0
+            return
+        }
+        if press != nil || leftButton.engaged || rightButton.engaged || middleButton.engaged
+            || scroll.active || crissCross.engaged {
+            // A press always wins, and so does an active scroll: the engage
+            // counters restart, never accumulate across an interruption.
+            events += endZoomIfActive()
+            zoom.engageFrames = 0
+            zoom.releaseFrames = 0
+            return
+        }
+        guard tracked.count == 2 else {
+            // One hand gone. Vision drops a hand exactly when the two
+            // overlap (mid-spread), so the missing partner gets the
+            // tracking-loss grace — the same shelter the criss-cross wave's
+            // partner gets.
+            if zoom.active, time - zoom.lastPairTime > config.trackingLossGrace {
+                events += endZoomIfActive()
+            } else if !zoom.active {
+                zoom.engageFrames = 0
+                zoom.releaseFrames = 0
+            }
+            return
+        }
+        zoom.lastPairTime = time
+
+        if !zoom.active {
+            // Engage: both hands in the zoom pose at engage-grade
+            // confidence, palms far enough apart — held for the debounce.
+            // Open hands need no `forming` click-block (the index is
+            // extended; nothing here reads like a dip), unlike the pinch
+            // design this replaced.
+            let engaging = tracked.allSatisfy { handIsZoomPose(armFeatures(of: $0.hand)) }
+                && (palmSpread(tracked) ?? 0) >= Self.zoomEngageSeparation
+            zoom.releaseFrames = 0
+            guard engaging else {
+                zoom.engageFrames = 0
+                return
+            }
+            zoom.engageFrames += 1
+            guard zoom.engageFrames >= config.pinchDebounceFrames else { return }
+            zoom = ZoomState(active: true, lastPairTime: time)
+            events.append(.zoom(delta: 0, phase: .began))
+            return
+        }
+
+        // Hold: permissive floor, either hand may close. A hand tending
+        // toward a fist (2+ curled) for the debounce ends the zoom;
+        // unreadable geometry (blur, a dropped hand's joints) holds it —
+        // only a readable close, the grace above, or a forced release may.
+        let held = tracked.allSatisfy {
+            guard let f = looseFeatures(of: $0.hand) else { return false }
+            return f.curledFingerCount() <= 2
+        }
+        if held {
+            zoom.releaseFrames = 0
+        } else {
+            zoom.releaseFrames += 1
+            if zoom.releaseFrames >= config.pinchDebounceFrames {
+                events += endZoomIfActive()
+            }
+        }
+    }
+
+    /// Ends an active zoom: the `.ended` event plus the state reset. Returns
+    /// [] when no zoom is active, so callers can splice it unconditionally.
+    /// The `.began` is always emitted at engage, so the phase pair is
+    /// guaranteed complete.
+    private func endZoomIfActive() -> [GestureEvent] {
+        guard zoom.active else { return [] }
+        zoom = ZoomState()
+        return [.zoom(delta: 0, phase: .ended)]
+    }
+
+    /// The distance between the two palm centers in screen space, or nil
+    /// unless both are readable this frame. Unclamped, like the scroll's
+    /// anchor point: hands spread past the interaction box's edge keep
+    /// zooming.
+    private func palmSpread(_ tracked: [TrackedHand]) -> Double? {
+        guard tracked.count == 2,
+              let a = looseFeatures(of: tracked[0].hand)?.pointerPoint(.palmCenter),
+              let b = looseFeatures(of: tracked[1].hand)?.pointerPoint(.palmCenter)
+        else { return nil }
+        return a.distance(to: b)
     }
 
     // MARK: - Dwell click
@@ -1019,7 +1303,8 @@ public final class GestureEngine {
             minJointConfidence: config.minJointConfidence,
             trackingLossGrace: config.trackingLossGrace,
             pressOrScrollActive: press != nil || leftButton.engaged
-                || rightButton.engaged || middleButton.engaged || scroll.active,
+                || rightButton.engaged || middleButton.engaged || scroll.active
+                || zoom.active,
             crissCrossEngaged: crissCross.engaged)
         let inputs = tracked.map {
             CustomGestureDetector.HandInput(slot: $0.slotID, hand: $0.hand)
@@ -1262,6 +1547,7 @@ public final class GestureEngine {
             overlay.middleGrabbed = middleButton.engaged
             overlay.isDragging = press?.dragging ?? false
             overlay.isScrolling = scroll.active
+            overlay.isZooming = zoom.active
             overlay.closingProgress = held ? 1 : 0
         }
         overlay.armed = armed
@@ -1290,9 +1576,10 @@ public final class GestureEngine {
         // under an active scroll remaps a motionless palm to a moving y and
         // scrolls on its own (measured: a hand-scale ramp of 0.15→0.30 under
         // a fixed palm emitted ~0.19 screen-normalized units of phantom
-        // scroll before this guard existed). Released, either way, the
-        // drift picks back up.
-        guard press == nil, !scroll.active, let scale = smoothedHandScale else { return }
+        // scroll before this guard existed). The zoom's spread runs through
+        // the same mapping, so it gets the same guard. Released, either
+        // way, the drift picks back up.
+        guard press == nil, !scroll.active, !zoom.active, let scale = smoothedHandScale else { return }
         let target = Self.targetBox(forHandScale: scale)
         func drift(_ edge: Double, toward goal: Double) -> Double {
             edge + (goal - edge) * Self.reachLerp

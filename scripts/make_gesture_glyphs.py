@@ -259,6 +259,27 @@ def splayed_hand(cx, flip=False):
     ])
 
 
+def open_palms_hand(cx, flip=False):
+    """Half of the spread zoom: an open hand with the fingers up and
+    TOGETHER — not splayed, that pose belongs to the stop-tracking wave.
+    Same proportions as `splayed_hand`, so the two-hand glyphs read as one
+    family."""
+    s = -1 if flip else 1
+
+    def fx(dx):
+        return round(cx + s * dx, 2)
+
+    return "\n  ".join(path(d) for d in [
+        f'M{fx(-5)} 23 V28 C{fx(-5)} 31.5 {fx(-3.5)} 33.5 {fx(0)} 33.5 '
+        f'C{fx(3.5)} 33.5 {fx(5)} 31.5 {fx(5)} 28 V23',
+        f'M{fx(-3)} 23 V12.5',
+        f'M{fx(-1)} 22.8 V10',
+        f'M{fx(1)} 22.8 V10.5',
+        f'M{fx(3)} 23 V13',
+        f'M{fx(-5)} 27 C{fx(-7.5)} 26.5 {fx(-9)} 24.5 {fx(-9.5)} 22',
+    ])
+
+
 GLYPHS = {
     # Control trigger: the open hand, presented to the camera.
     "take-control": hand(extra=(
@@ -282,6 +303,12 @@ GLYPHS = {
     # Scroll: middle and ring fold in, index and little stay up, and the
     # whole hand travels up and down.
     "scroll": hand(("middle", "ring"), updown_arrow(41.5, 13, 33)),
+
+    # Pinch zoom: two open hands facing each other, the palms spreading
+    # apart and back together.
+    "zoom": (
+        open_palms_hand(11) + "\n  " + open_palms_hand(37, flip=True) + "\n  " +
+        arrow(15, 9, 5, 9) + "\n  " + arrow(33, 9, 43, 9)),
 
     # Stop tracking: both hands splayed, waved across each other.
     "stop-tracking": (
@@ -393,6 +420,12 @@ GUIDE_GLYPHS = {
     "full-scroll": (
         group(hand(("middle", "ring"), cursor_dot(25.5, 32)), tx=22, ty=1, s=0.95) + "\n  " +
         updown_arrow(78, 10, 38)),
+
+    # Pinch zoom: the two open palms, and the hands spreading apart between
+    # them (and back together — the same arrows read both ways).
+    "full-zoom": (
+        open_palms_hand(30) + "\n  " + open_palms_hand(74, flip=True) + "\n  " +
+        arrow(56, 24, 44, 24) + "\n  " + arrow(48, 24, 60, 24)),
 
     # Stop tracking: the double high-five trading sides, drawn big.
     "full-stop-tracking": group(

@@ -80,6 +80,9 @@
 "On: moving your hand up scrolls the page down. Vertical only — horizontal scrolling always follows the hand." = "开启时，手向上移动页面向下滚。仅限垂直方向，水平滚动始终跟手。";
 "Scroll speed" = "滚动速度";
 "How much a hand movement scrolls, both axes. Left: slower, more precise. Right: faster." = "手部动作对应多少滚动量，两个轴都适用。左：更慢更精细。右：更快。";
+"Pinch zoom" = "捏合缩放";
+"Show the camera both hands open at once — fingers up, palms facing each other — and the cursor parks with a violet ring: you're holding a zoom. Move your hands apart to zoom in, together to zoom out, wherever the trackpad pinch works (Photos, Preview, maps, PDFs). Close your hands all the way and the view springs back to its original size. Close either hand to let go." = "同时向摄像头亮出两只张开的手（手指向上、掌心相对），光标停靠并出现紫色圆环：你正握着一个缩放。双手分开放大、合拢缩小，凡支持触控板捏合的地方都有效（照片、预览、地图、PDF）。双手完全合拢，画面自动回到原始大小。握起任一只手即退出。";
+"Zoom speed" = "缩放速度";
 "How much zoom a hand spread buys. Left: smaller steps, more precise. Right: bigger steps, faster." = "手部分开对应多少缩放量。左：步进更小更精细。右：步进更大更快。";
 "Dwell click" = "悬停点击";
 "Clicking without the finger dip: park the cursor on a target, hold it still, and after the dwell time a left click fires on its own (the ring around the claw tightens as it counts down). Move the cursor away to arm the next one. It never fires while a button is held, while scrolling, or while the cursor is parked." = "不用下压手指的点击方式：把光标停在目标上保持不动，超过悬停时长后自动发出左键点击（小爪周围的圆环会随倒计时收紧）。移开光标才能准备下一次。按住按键、滚动中或光标停靠期间绝不会触发。";
@@ -167,6 +170,8 @@
 "Dip your ring finger the same way — the claw turns pink while it's down. Hold it to middle-drag." = "同样方式下压无名指，按下期间小爪变粉。按住不放可中键拖拽。";
 "Scroll" = "滚动";
 "Fold your middle and ring fingers in — index and pinky stay up. Move your hand up to scroll up and down to scroll down. The cursor parks (with a light-blue ring) while the pose is held; relax your hand to let go." = "中指和无名指收拢，食指和小指保持向上。手向上移页面向上滚，向下移向下滚。保持姿势期间光标停靠（浅蓝色圆环），放松手即退出。";
+"Pinch zoom" = "捏合缩放";
+"Show both hands open at once — fingers up, palms facing each other — and the claw parks (violet ring): you're holding a zoom. Move your hands apart to zoom in, together to zoom out, wherever the trackpad pinch works (Photos, Preview, maps, PDFs). Bring your hands all the way together and the view springs back to its original size. Keep the fingers together, not spread wide — spread fingers belong to the stop-tracking wave. Close either hand to let go." = "同时亮出两只张开的手（手指向上、掌心相对），小爪停靠并出现紫色圆环：你正握着一个缩放。双手分开放大、合拢缩小，凡支持触控板捏合的地方都有效（照片、预览、地图、PDF）。双手完全合拢，画面自动回到原始大小。手指要并拢而不是张开：张开的手指属于停止追踪挥动。握起任一只手即退出。";
 "Stop tracking" = "停止追踪";
 "Hold up both hands open with fingers spread wide — a double high-five — and wave them across each other. Once they've traded sides twice (over and back), tracking switches off entirely. Turn it back on from the menu bar." = "双手张开、手指充分展开举起来（像双击掌），相互交叉挥动。交叉换位两次（过去再回来）后，追踪完全关闭。可从菜单栏重新打开。";
 "Mouse control is off: you chose “custom gestures only” under Settings → Tracking. Your hands never move the cursor — they only trigger the gestures you've assigned." = "鼠标控制已关闭：你在设置 → 追踪里选择了“仅自定义手势”。手不会移动光标，只触发你绑定的手势。";

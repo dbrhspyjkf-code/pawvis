@@ -899,13 +899,13 @@ final class PawvisController: ObservableObject {
 
         mouse.apply(events)
 
-        // While a button is held or a scroll is active, the idle throttle
-        // must never engage. Hands are obviously in view then — the no-hands
-        // clock isn't even running — but the guard is explicit rather than
-        // inferred: dropping frames mid-press is the one failure this
-        // feature must not be able to cause.
+        // While a button is held, a scroll or a zoom is active, the idle
+        // throttle must never engage. Hands are obviously in view then —
+        // the no-hands clock isn't even running — but the guard is explicit
+        // rather than inferred: dropping frames mid-press is the one failure
+        // this feature must not be able to cause.
         let interacting = overlayState.grabbed || overlayState.rightGrabbed
-            || overlayState.isScrolling
+            || overlayState.isScrolling || overlayState.isZooming
         throttle.setInteracting(interacting)
         // The attention gate must never close mid-press either: same fact,
         // same mirror, second consumer.
@@ -1001,8 +1001,10 @@ final class PawvisController: ObservableObject {
     private func apply(settings: PawvisSettings) {
         engine.config = settings.gestures
         // The engine emits normalized scroll deltas; the speed dial applies
-        // where the wheel pixels are composed.
+        // where the wheel pixels are composed. The zoom's spread deltas get
+        // the same handoff through the same dial.
         mouse.scrollGain = settings.gestures.scrollGain
+        mouse.zoomGain = settings.gestures.zoomGain
         engine.customConfig = settings.customGestures.detectorConfig()
         // Trained gestures share the custom library's master switch.
         engine.trainedConfig = settings.trainedGestures.detectorConfig(

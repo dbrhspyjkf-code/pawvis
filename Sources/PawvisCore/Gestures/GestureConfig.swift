@@ -140,6 +140,21 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     /// screen-length wheel steps.
     public static let scrollGainRange: ClosedRange<Double> = 0.5...5.0
 
+    // MARK: Pinch zoom
+    /// Pinch with both hands — thumb and index tips together on each — then
+    /// move them apart to zoom in and together to zoom out, wherever the
+    /// trackpad pinch works (Photos, Preview, maps, PDFs). The cursor parks
+    /// while the pose is held. On by default, like the scroll pose: two
+    /// simultaneous pinches are never an accident.
+    public var zoomEnabled: Bool = true
+    /// Magnification per screen-normalized unit of hand spread — the Zoom
+    /// speed slider. The engine emits normalized deltas; the app's posting
+    /// layer multiplies this in, exactly like `scrollGain`.
+    public var zoomGain: Double = 1.5
+    /// The Zoom speed slider's range, same clamping story as
+    /// `scrollGainRange`.
+    public static let zoomGainRange: ClosedRange<Double> = 0.5...5.0
+
     // MARK: Dwell click
     /// Click by holding still: with cursor control armed and no button down,
     /// keeping the cursor inside a small radius for `dwellSeconds` emits one
@@ -224,6 +239,7 @@ public struct GestureConfig: Codable, Equatable, Sendable {
         case rightClickEnabled, rightClickFinger
         case middleClickEnabled, middleClickFinger
         case scrollEnabled, scrollInvert, scrollAxes, scrollGain
+        case zoomEnabled, zoomGain
         case dwellClickEnabled, dwellSeconds
         case crissCrossDisableEnabled, crissCrossDisableCrossings
         case doubleClickInterval, doubleClickSlop, dragActivationDistance
@@ -282,6 +298,12 @@ public struct GestureConfig: Codable, Equatable, Sendable {
             // Clamped to the slider's range, not trusted verbatim: the gain
             // multiplies straight into posted wheel pixels.
             scrollGain = min(max(v, Self.scrollGainRange.lowerBound), Self.scrollGainRange.upperBound)
+        }
+        if let v = try? c.decodeIfPresent(Bool.self, forKey: .zoomEnabled) { zoomEnabled = v }
+        if let v = try? c.decodeIfPresent(Double.self, forKey: .zoomGain) {
+            // Same reasoning as scrollGain: the gain multiplies straight
+            // into posted magnification.
+            zoomGain = v.clamped(to: Self.zoomGainRange)
         }
         if let v = try? c.decodeIfPresent(Bool.self, forKey: .dwellClickEnabled) { dwellClickEnabled = v }
         if let v = try? c.decodeIfPresent(TimeInterval.self, forKey: .dwellSeconds) {
