@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import os
 import Foundation
 import PawvisCore
 
@@ -66,7 +67,14 @@ final class SpaceSwitcher {
         return SkyLight(connection: main(), copySpaces: copy)
     }()
 
-    private var busy = false
+    /// True while a switch sequence is mid-flight (opened through the
+    /// Mission Control route). The controller silences synthetic mouse
+    /// output for the duration: the hand that fired the gesture is still
+    /// in front of the camera, and its cursor moves land in the open
+    /// Mission Control, stealing focus from the arrow-key selection.
+    private(set) var busy = false
+
+    nonisolated(unsafe) private static let trace = Logger(subsystem: "com.pawvis.Pawvis", category: "spaceTrace")
 
     /// One space in a display's ring: its window-server id and whether it
     /// is a user desktop (`type == 0`) rather than a full-screen app's
@@ -168,43 +176,29 @@ final class SpaceSwitcher {
     /// 123/165, exit speed in 129/130 when ending), a bare type-29 companion
     /// after each carrier, and the end pair re-posted once at +0.2 s — the
     /// "stuck bug" guard, a WindowServer under load drops the first end.
-    /// The switch route that still works on this macOS: through Mission
-    /// Control's own keyboard focus. The Dock-swipe synthesis this class
-    /// shipped — both the old plain-field layout and the field-for-field
-    /// Tahoe layout transcribed from a real captured swipe, HID source
-    /// state included — posts cleanly and moves nothing on macOS 27
-    /// (measured against a tap capture of a real swipe; the carrier is
-    /// accepted but the gesture pipeline drops what it can't attribute to
-    /// real hardware). Mission Control, by contrast, answers the
-    /// synthesized fn+⌃↑ that already drives the missionControl action,
-    /// and once it holds the screen its keyboard focus takes plain arrow
-    /// keys and Return. Measured live: space 31 → 53 through fn+⌃↑, ←,
-    /// Return, verified against the SkyLight read.
-    ///
-    /// The cost is visible: Mission Control flashes on screen for ~0.7 s
-    /// on the way to the target desktop. Slower than a swipe, and the
-    /// only door macOS 27 left open.
-    private func postViaMissionControl(direction: Direction, steps: Int) async {
+    /// The switch route that works here: ⌃ + fn + arrow. Plain ⌃←/⌃→ has
+    /// ignored synthetic input on every macOS this app shipped against
+    /// (measured then with every flag recipe), but on this macOS 27 the
+    /// arrows answer again — carrying the fn flag, the same wrinkle the
+    /// fn-block symbolic hotkeys taught (TextTyper). Measured both
+    /// directions: 53→31 with ⌃fn→, 31→53 with ⌃fn←, immediate, no
+    /// Mission Control flash. One keypress walks one ring entry
+    /// (full-screen spaces included — swipeSteps' exact unit), so steps
+    /// keypresses land on the target desktop.
+    private func postCtrlArrows(direction: Direction, steps: Int) async {
         await Task.detached(priority: .userInitiated) {
             let src = CGEventSource(stateID: .hidSystemState)
-            func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
-                guard let d = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true),
-                      let u = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: false)
-                else { return }
-                d.flags = flags
-                d.post(tap: .cghidEventTap)
-                usleep(20_000)
-                u.flags = flags
-                u.post(tap: .cghidEventTap)
-            }
-            key(126, [.maskSecondaryFn, .maskControl]) // Mission Control opens
-            usleep(700_000) // let it take the screen and the keyboard focus
             let arrow: CGKeyCode = direction == .left ? 123 : 124
             for _ in 0..<steps {
-                key(arrow)
-                usleep(300_000)
+                for down in [true, false] {
+                    guard let e = CGEvent(keyboardEventSource: src,
+                                          virtualKey: arrow, keyDown: down) else { continue }
+                    e.flags = [.maskControl, .maskSecondaryFn]
+                    e.post(tap: .cghidEventTap)
+                    usleep(25_000)
+                }
+                usleep(350_000) // one ring entry per press, let each land
             }
-            key(36) // Return commits the focused space
         }.value
     }
 
@@ -224,10 +218,38 @@ final class SpaceSwitcher {
     }
 
     /// Perform the switch; the returned line is the status-pill outcome.
+    /// Whether a Mission Control overlay is holding the screen right now:
+    /// a Dock-owned window covering (nearly) the whole main display. A
+    /// leftover overlay from a failed earlier attempt swallows the whole
+    /// sequence — fn+Ctrl+Up on an open MC does nothing useful, and every
+    /// key after it lands who-knows-where (measured: sequence dead until
+    /// an Escape cleared it, then the same sequence switched first try).
+    nonisolated private static func missionControlIsOpen() -> Bool {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        let screen = CGDisplayBounds(CGMainDisplayID())
+        for window in list {
+            guard (window[kCGWindowOwnerName as String] as? String) == "Dock",
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let w = bounds["Width"] as? Double, let h = bounds["Height"] as? Double,
+                  let x = bounds["X"] as? Double, let y = bounds["Y"] as? Double
+            else { continue }
+            let rect = CGRect(x: x, y: y, width: w, height: h)
+            if rect.width >= screen.width * 0.9, rect.height >= screen.height * 0.9 {
+                return true
+            }
+        }
+        return false
+    }
+
     func switchDesktop(_ direction: Direction) async -> String {
         guard !busy else { return "Still switching…" }
         busy = true
-        defer { busy = false }
+        Self.trace.debug("switch begin \((direction == .left ? "left" : "right") as String, privacy: .public)")
+        defer {
+            busy = false
+            Self.trace.debug("switch end")
+        }
 
         guard let sky = skyLight else {
             return "Desktop switching isn't available on this macOS"
@@ -246,7 +268,14 @@ final class SpaceSwitcher {
         }
         let steps = Self.swipeSteps(in: display.spaces, from: display.current, to: target) ?? 1
 
-        await postViaMissionControl(direction: direction, steps: steps)
+        // A leftover overlay would eat the keys; clear it first.
+        if Self.missionControlIsOpen() {
+            Self.trace.debug("clearing a leftover mission control")
+            await dismissMissionControl()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
+
+        await postCtrlArrows(direction: direction, steps: steps)
 
         // Verified, not assumed — and meaningful: nothing here writes the
         // window server's state, so a changed current space can only be the

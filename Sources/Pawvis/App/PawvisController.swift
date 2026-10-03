@@ -897,7 +897,14 @@ final class PawvisController: ObservableObject {
             return
         }
 
-        mouse.apply(events)
+        // A desktop switch rides Mission Control's keyboard focus; the
+        // firing hand is still in front of the camera and its cursor
+        // moves would land in the open MC and steal the arrow selection
+        // (measured: MC flashes, nothing switches). Silence the mouse
+        // for the flight.
+        if !actionRunner.spaceSwitchInFlight {
+            mouse.apply(events)
+        }
 
         // While a button is held, a scroll or a zoom is active, the idle
         // throttle must never engage. Hands are obviously in view then —

@@ -21,6 +21,10 @@ final class GestureActionRunner {
     private let placer = WindowPlacer()
     private let spaces = SpaceSwitcher()
 
+    /// True while a desktop-switch sequence is mid-flight (the controller
+    /// silences mouse output for its duration).
+    var spaceSwitchInFlight: Bool { spaces.busy }
+
     /// Perform the action; the return value is what the status pill flashes.
     func perform(_ action: GestureAction) -> String {
         switch action.kind {

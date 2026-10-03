@@ -728,20 +728,23 @@ How a bound gesture's action actually reaches macOS
 with `--action-eval`, not by reading Apple's documentation, which describes
 none of this:
 
-- **macOS 27 closed the Dock-swipe door; Mission Control's keyboard focus
-  is the route that still works.** Both swipe layouts — the plain-field
-  one this class shipped and a field-for-field transcription of a real
-  captured swipe (type-30 carrier, DockSwipe payload, ramped offsets,
-  phase bit patterns, exit speeds, HID source state) — post cleanly and
-  move nothing on 27.0.1: the gesture pipeline drops what it cannot
-  attribute to real hardware. What still answers synthesis is the
-  fn+⌃↑ that opens Mission Control (the missionControl action's own
-  recipe), and once MC holds the screen its keyboard focus takes plain
-  arrows and Return: fn+⌃↑, N arrows, Return, verified against the
-  SkyLight read (space 31 → 53, first try). Cost: MC flashes for ~0.7 s
-  on the way. The failure path posts an Escape so a wedged MC never
-  holds the screen. If a future macOS answers the swipe again, prefer
-  it: it is invisible where this route is visible.
+- **macOS 27: the Dock-swipe door is closed; ⌃+fn+arrows is the route
+  that works.** Both swipe layouts — the plain-field one this class
+  shipped and a field-for-field transcription of a real captured swipe —
+  post cleanly and move nothing: the gesture pipeline drops what it
+  cannot attribute to real hardware. A detour through Mission Control
+  was tried next (its fn+⌃↑ opens fine, and from a FULL-SCREEN space the
+  arrow keys even switch), but the desktop-open MC ignores every
+  synthetic key AND every synthetic click on the space strip (real
+  keyboards are ignored there too — it's the system's view, not a
+  filter), so that route only worked from full-screen starts. The answer
+  was re-testing ⌃←/⌃→ themselves: on this macOS they answer synthetic
+  input again — carrying the fn flag, the same wrinkle the fn-block
+  hotkeys taught. Measured both directions, immediate, no MC flash; one
+  keypress walks one ring entry (full-screen spaces included), so
+  swipeSteps maps to keypresses directly. If a future macOS goes quiet
+  again, the leftover-MC guard and the MC experiments above are the
+  trailhead.
 - **Synthetic key chords need the fn flag and real modifier key events.**
   The system's own hotkeys are registered with the secondary-fn bit for
   fn-block keys (show desktop is literally fn+F11's mask, Mission Control

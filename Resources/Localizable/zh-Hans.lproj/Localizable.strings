@@ -770,3 +770,14 @@
 "Everything you say after “%1$@” is sent to it, and speech recognition is not perfect, so a misheard command is still executed. This is also the only mode that sends what you say beyond this Mac. Only “%1$@, stop listening” stays local. By default Pawvis reads each command back on screen and sends it only after you say “%1$@ yes”; switch that confirmation off in Settings → Voice and commands go the moment they are heard." = "你说的每一句话都会发送给它，而语音识别并不完美，听错的指令同样会被执行。这也是唯一会把你的语音发出这台 Mac 的模式。只有“%1$@，停止聆听”保留在本地。默认情况下 Pawvis 会在屏幕上复述每条指令，你说了“%1$@ 是”才发送；在设置 → 语音里关掉这个确认后，指令一听到就立即发送。";
 "Stay on Apple Intelligence (on-device) if you want a handler that can only do what Pawvis itself can do." = "如果你想要一个只能做 Pawvis 本身能做的事的处理方式，请继续使用 Apple 智能（设备端）。";
 "Turning this on is your call and your responsibility: Pawvis is provided as is, with no warranty, and its developer accepts no liability for anything done with it, intended or not. Please use it responsibly." = "开启与否由你决定，责任也由你承担：Pawvis 按现状提供、不附带任何保证，开发者对用它做的任何事（无论是否有意）不承担责任。请负责任地使用。";
+
+/* ===== 桌面切换 follow-up ===== */
+"Desktop left" = "已切到左边的桌面";
+"Desktop right" = "已切到右边的桌面";
+"Desktop didn't switch" = "桌面未能切换";
+"No desktop to the left" = "左边没有桌面";
+"No desktop to the right" = "右边没有桌面";
+"Still switching…" = "正在切换…";
+"Couldn't read the desktop layout" = "无法读取桌面布局";
+"Couldn't find the active desktop" = "找不到当前桌面";
+"Desktop switching isn't available on this macOS" = "此 macOS 版本不支持桌面切换";
