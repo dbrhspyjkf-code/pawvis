@@ -728,6 +728,20 @@ How a bound gesture's action actually reaches macOS
 with `--action-eval`, not by reading Apple's documentation, which describes
 none of this:
 
+- **macOS 27 closed the Dock-swipe door; Mission Control's keyboard focus
+  is the route that still works.** Both swipe layouts — the plain-field
+  one this class shipped and a field-for-field transcription of a real
+  captured swipe (type-30 carrier, DockSwipe payload, ramped offsets,
+  phase bit patterns, exit speeds, HID source state) — post cleanly and
+  move nothing on 27.0.1: the gesture pipeline drops what it cannot
+  attribute to real hardware. What still answers synthesis is the
+  fn+⌃↑ that opens Mission Control (the missionControl action's own
+  recipe), and once MC holds the screen its keyboard focus takes plain
+  arrows and Return: fn+⌃↑, N arrows, Return, verified against the
+  SkyLight read (space 31 → 53, first try). Cost: MC flashes for ~0.7 s
+  on the way. The failure path posts an Escape so a wedged MC never
+  holds the screen. If a future macOS answers the swipe again, prefer
+  it: it is invisible where this route is visible.
 - **Synthetic key chords need the fn flag and real modifier key events.**
   The system's own hotkeys are registered with the secondary-fn bit for
   fn-block keys (show desktop is literally fn+F11's mask, Mission Control

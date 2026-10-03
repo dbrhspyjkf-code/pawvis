@@ -159,23 +159,68 @@ final class SpaceSwitcher {
     }
 
     /// The WindowServer's space-switch pipeline, entered where the trackpad
-    /// swipe enters it. The field numbers are the undocumented CGEventField
-    /// keys the gesture layer reads; the velocity is high enough that the
-    /// slide animation is skipped instead of replayed per step.
-    private func postDockSwipe(direction: Direction, steps: Int) {
-        guard let event = CGEvent(source: nil) else { return }
-        let sign: Double = direction == .right ? 1 : -1
-        event.setIntegerValueField(CGEventField(rawValue: 55)!, value: 30) // type: Dock control
-        event.setIntegerValueField(CGEventField(rawValue: 110)!, value: 23) // gesture: Dock swipe
-        event.setIntegerValueField(CGEventField(rawValue: 123)!, value: 1) // motion: horizontal
-        event.setDoubleValueField(CGEventField(rawValue: 124)!, value: sign) // progress
-        event.setDoubleValueField(CGEventField(rawValue: 129)!, value: sign * 9999) // velocity
-        for _ in 0..<steps {
-            event.setIntegerValueField(CGEventField(rawValue: 132)!, value: 1) // phase: began
-            event.post(tap: .cgSessionEventTap)
-            event.setIntegerValueField(CGEventField(rawValue: 132)!, value: 4) // phase: ended
-            event.post(tap: .cgSessionEventTap)
-        }
+    /// swipe enters it. macOS 27 stopped reading the plain CGEventFields the
+    /// previous layout set (measured here: the swipe posts, nothing moves),
+    /// so this posts the field-for-field layout Mac Mouse Fix's Tahoe branch
+    /// ships: a type-30 carrier with the DockSwipe payload (subtype 110=23,
+    /// phases in 132/134, the running origin offset in 124 and its
+    /// float32-bits encoding in 135, the direction selector in 119/139 and
+    /// 123/165, exit speed in 129/130 when ending), a bare type-29 companion
+    /// after each carrier, and the end pair re-posted once at +0.2 s — the
+    /// "stuck bug" guard, a WindowServer under load drops the first end.
+    /// The switch route that still works on this macOS: through Mission
+    /// Control's own keyboard focus. The Dock-swipe synthesis this class
+    /// shipped — both the old plain-field layout and the field-for-field
+    /// Tahoe layout transcribed from a real captured swipe, HID source
+    /// state included — posts cleanly and moves nothing on macOS 27
+    /// (measured against a tap capture of a real swipe; the carrier is
+    /// accepted but the gesture pipeline drops what it can't attribute to
+    /// real hardware). Mission Control, by contrast, answers the
+    /// synthesized fn+⌃↑ that already drives the missionControl action,
+    /// and once it holds the screen its keyboard focus takes plain arrow
+    /// keys and Return. Measured live: space 31 → 53 through fn+⌃↑, ←,
+    /// Return, verified against the SkyLight read.
+    ///
+    /// The cost is visible: Mission Control flashes on screen for ~0.7 s
+    /// on the way to the target desktop. Slower than a swipe, and the
+    /// only door macOS 27 left open.
+    private func postViaMissionControl(direction: Direction, steps: Int) async {
+        await Task.detached(priority: .userInitiated) {
+            let src = CGEventSource(stateID: .hidSystemState)
+            func key(_ code: CGKeyCode, _ flags: CGEventFlags = []) {
+                guard let d = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: true),
+                      let u = CGEvent(keyboardEventSource: src, virtualKey: code, keyDown: false)
+                else { return }
+                d.flags = flags
+                d.post(tap: .cghidEventTap)
+                usleep(20_000)
+                u.flags = flags
+                u.post(tap: .cghidEventTap)
+            }
+            key(126, [.maskSecondaryFn, .maskControl]) // Mission Control opens
+            usleep(700_000) // let it take the screen and the keyboard focus
+            let arrow: CGKeyCode = direction == .left ? 123 : 124
+            for _ in 0..<steps {
+                key(arrow)
+                usleep(300_000)
+            }
+            key(36) // Return commits the focused space
+        }.value
+    }
+
+    /// A dismissal for the failure path: if the commit never landed,
+    /// Mission Control may still be holding the screen — leave nothing
+    /// open behind a failed switch.
+    private func dismissMissionControl() async {
+        await Task.detached(priority: .userInitiated) {
+            let src = CGEventSource(stateID: .hidSystemState)
+            guard let d = CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: true),
+                  let u = CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: false)
+            else { return }
+            d.post(tap: .cghidEventTap)
+            usleep(20_000)
+            u.post(tap: .cghidEventTap)
+        }.value
     }
 
     /// Perform the switch; the returned line is the status-pill outcome.
@@ -201,18 +246,20 @@ final class SpaceSwitcher {
         }
         let steps = Self.swipeSteps(in: display.spaces, from: display.current, to: target) ?? 1
 
-        postDockSwipe(direction: direction, steps: steps)
+        await postViaMissionControl(direction: direction, steps: steps)
 
-        // Verified, not assumed — and meaningful again: nothing here writes
-        // the window server's state, so a changed current space can only be
-        // Dock actually having switched. Re-read the same display each poll.
-        for _ in 0..<8 {
-            try? await Task.sleep(nanoseconds: 120_000_000)
+        // Verified, not assumed — and meaningful: nothing here writes the
+        // window server's state, so a changed current space can only be the
+        // system actually having switched. The window is generous because
+        // the route itself takes ~1.5 s of animations.
+        for _ in 0..<10 {
+            try? await Task.sleep(nanoseconds: 250_000_000)
             if let now = readDisplays(sky),
                now.first(where: { $0.identifier == display.identifier })?.current == target {
                 return direction == .left ? "Desktop left" : "Desktop right"
             }
         }
+        await dismissMissionControl()
         return "Desktop didn't switch"
     }
 }
