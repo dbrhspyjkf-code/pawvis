@@ -224,6 +224,17 @@ private func runZoomCameraEval() -> Int32 {
             let open = strict?.isOpenHand() == true ? "open" : (loose?.isOpenHand() == true ? "open✗conf" : "closed")
             let splay = loose?.splayAmount().map { String(format: "%.2f", $0) } ?? "–"
             marks.append("\(open) splay=\(splay)")
+            // Thumb-signal diagnostics: the pose needs openness ≤ 0.15 (a
+            // closed hand), the thumb ≥ 0.85 hand-scales clear of the palm,
+            // and 1.5× axis dominance. Print where the hand actually sits.
+            if let loose, let palm = loose.palmCenter(), let thumb = loose.hand[.thumbTip] {
+                let v = (thumb - palm) / loose.scale
+                let closeness = loose.openness().map { String(format: "%.2f", $0) } ?? "–"
+                let dir = loose.thumbDirection()?.rawValue ?? "none"
+                marks.append(String(
+                    format: "fist-open=%@ thumb=(%.2f,%.2f)|%.2f dir=%@",
+                    closeness, v.x, v.y, v.length, dir))
+            }
         }
         let spread = hands.count == 2
             ? (looseFeaturesPalmDistance(hands) ).map { String(format: " spread=%.2f", $0) } ?? ""
