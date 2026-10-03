@@ -482,7 +482,7 @@ func runSelfTest() -> Int32 {
         // index is not one of them (it already drives the left button). Every
         // custom gesture ships a pose too — the gallery and the guide both
         // draw them.
-        let poses = ["take-control", "move", "click", "drag", "scroll", "zoom", "stop-tracking"]
+        let poses = ["take-control", "move", "click", "drag", "scroll", "stop-tracking"]
             + Finger.allCases.filter { $0 != .index }.map { "right-click-\($0.rawValue)" }
             + CustomGesture.allCases.map(\.glyphName)
         for name in poses {
@@ -491,7 +491,7 @@ func runSelfTest() -> Int32 {
         // The guide's whole-gesture panels (`full-*`), one per row it can
         // show — same fallback story, same reason to assert.
         let panels = ["full-take-control", "full-move", "full-click", "full-drag",
-                      "full-scroll", "full-zoom", "full-stop-tracking", "full-wiggle",
+                      "full-scroll", "full-stop-tracking", "full-wiggle",
                       "full-wiggle-pointed", "full-thumbs", "full-shaka", "full-grab"]
             + Finger.allCases.filter { $0 != .index }.map { "full-right-click-\($0.rawValue)" }
         for name in panels {

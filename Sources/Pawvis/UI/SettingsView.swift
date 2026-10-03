@@ -514,20 +514,6 @@ private struct MouseSettingsTab: View {
             Divider()
 
             SettingToggle(
-                title: "Pinch zoom",
-                caption: "Show the camera both hands open at once — fingers up, palms facing each other — and the cursor parks with a violet ring: you're holding a zoom. Move your hands apart to zoom in, together to zoom out, wherever the trackpad pinch works (Photos, Preview, maps, PDFs). Close your hands all the way and the view springs back to its original size. Close either hand to let go.",
-                isOn: $store.settings.gestures.zoomEnabled)
-
-            LabeledSlider(
-                label: "Zoom speed",
-                caption: "How much zoom a hand spread buys. Left: smaller steps, more precise. Right: bigger steps, faster.",
-                value: $store.settings.gestures.zoomGain,
-                range: GestureConfig.zoomGainRange)
-                .disabled(!store.settings.gestures.zoomEnabled)
-
-            Divider()
-
-            SettingToggle(
                 title: "Dwell click",
                 caption: "Clicking without the finger dip: park the cursor on a target, hold it still, and after the dwell time a left click fires on its own (the ring around the claw tightens as it counts down). Move the cursor away to arm the next one. It never fires while a button is held, while scrolling, or while the cursor is parked.",
                 isOn: $store.settings.gestures.dwellClickEnabled)

@@ -25,11 +25,6 @@ final class MouseController {
     /// settings propagation, read when composing the event to post).
     var scrollGain: Double = GestureConfig.default.scrollGain
 
-    /// Magnification per screen-normalized unit of pinch spread — the Zoom
-    /// speed slider, threaded in from `gestures.zoomGain` with the same
-    /// story as `scrollGain`.
-    var zoomGain: Double = GestureConfig.default.zoomGain
-
     private let source = CGEventSource(stateID: .hidSystemState)
     private static let minPostInterval: TimeInterval = 0.006
     private let postQueue = DispatchQueue(label: "com.pawvis.mouse.post", qos: .userInteractive)
@@ -73,8 +68,6 @@ final class MouseController {
                      clickCount: clickCount)
             case .scroll(let deltaX, let deltaY):
                 postScroll(deltaX: deltaX, deltaY: deltaY)
-            case .zoom(let delta, let phase):
-                postZoom(delta: delta, phase: phase)
             case .disableTracking, .customGesture, .trainedGesture:
                 // Not mouse events — PawvisController intercepts them before
                 // apply. One that slips through is a no-op.
@@ -98,39 +91,6 @@ final class MouseController {
                 wheelCount: 2, wheel1: vertical, wheel2: horizontal, wheel3: 0) else { return }
         // Continuous = smooth pixel scrolling; apps animate it like a trackpad.
         event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
-        postQueue.async {
-            self.paceAndPost(event)
-        }
-    }
-
-    /// The IOHID zoom gesture's CGEvent field layout, undocumented by Apple
-    /// and shared by every touch-synthesizing app: the event type is 29
-    /// (`NSEventType.gesture`), field 110 carries the IOHID event subtype
-    /// (8 = `kIOHIDEventTypeZoom`), field 113 the magnification delta, and
-    /// field 132 the IOHID phase. Reverse-engineered by CalfTrail Touch and
-    /// shipped in production by Mac Mouse Fix for years; verified against
-    /// what a real trackpad pinch delivers, not against documentation that
-    /// does not exist.
-    private static let gestureEventType = CGEventType(rawValue: 29)!   // NSEventType.gesture
-    private static let hidTypeField = CGEventField(rawValue: 110)!     // IOHID event subtype
-    private static let hidZoomType: Int64 = 8                          // kIOHIDEventTypeZoom
-    private static let magnificationField = CGEventField(rawValue: 113)!
-    private static let hidPhaseField = CGEventField(rawValue: 132)!
-
-    /// Posts one step of a synthesized trackpad pinch-zoom (magnify)
-    /// gesture. `delta` is the engine's screen-normalized spread travel —
-    /// positive = hands apart = zoom in — scaled into magnification by
-    /// `zoomGain` (the Zoom speed slider), the same handoff scroll deltas
-    /// get. The engine guarantees the phase pair: one `.began`, deltas as
-    /// `.changed`, one `.ended` (apps receiving a magnify stream expect
-    /// the phases, and a zero-magnification phase step is what a real
-    /// trackpad posts at both ends of a pinch).
-    private func postZoom(delta: Double, phase: ZoomPhase) {
-        guard let event = CGEvent(source: source) else { return }
-        event.type = Self.gestureEventType
-        event.setIntegerValueField(Self.hidTypeField, value: Self.hidZoomType)
-        event.setDoubleValueField(Self.magnificationField, value: delta * zoomGain)
-        event.setIntegerValueField(Self.hidPhaseField, value: phase.hidPhase)
         postQueue.async {
             self.paceAndPost(event)
         }
@@ -283,18 +243,5 @@ private extension PawvisCore.MouseButton {
 private extension Array {
     subscript(safe index: Int) -> Element? {
         indices.contains(index) ? self[index] : nil
-    }
-}
-
-private extension ZoomPhase {
-    /// The IOHID event phases a real trackpad pinch carries (from
-    /// IOHIDEventBase.h's `IOHIDEventPhaseBits`): began 1 << 0, changed
-    /// 1 << 1, ended 1 << 2.
-    var hidPhase: Int64 {
-        switch self {
-        case .began: return 1
-        case .changed: return 2
-        case .ended: return 4
-        }
     }
 }

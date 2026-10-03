@@ -21,10 +21,6 @@ if let actionIndex = CommandLine.arguments.firstIndex(of: "--action-eval") {
     let actionArgs = Array(CommandLine.arguments[(actionIndex + 1)...])
     exit(MainActor.assumeIsolated { runActionEval(actionArgs) })
 }
-if let zoomIndex = CommandLine.arguments.firstIndex(of: "--zoom-eval") {
-    let zoomArgs = Array(CommandLine.arguments[(zoomIndex + 1)...])
-    exit(MainActor.assumeIsolated { runZoomEval(zoomArgs) })
-}
 if let gestureIndex = CommandLine.arguments.firstIndex(of: "--gesture-eval") {
     exit(runGestureEval(Array(CommandLine.arguments[(gestureIndex + 1)...])))
 }
