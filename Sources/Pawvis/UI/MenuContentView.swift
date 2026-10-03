@@ -110,7 +110,7 @@ struct MenuContentView: View {
                 Image(systemName: voiceIcon)
                     .foregroundStyle(voiceTint)
                     .frame(width: 18)
-                Text(voiceStatusText)
+                Text(LocalizedStringKey(voiceStatusText))
                     .font(.callout)
                     .lineLimit(2)
                 Spacer()
@@ -152,7 +152,7 @@ struct MenuContentView: View {
             Image(systemName: icon)
                 .foregroundStyle(tint)
                 .frame(width: 18)
-            Text(text)
+            Text(LocalizedStringKey(text))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true) // wrap, never truncate
             Spacer()
@@ -207,7 +207,7 @@ struct MenuContentView: View {
                     // of the setting, not a guess. Named, because a raw
                     // UUID reads as an error rather than as "waiting".
                     if case .awaitingReturn(let id, let name) = cameraPresentation {
-                        Text("\(name ?? "Selected camera") (not connected)").tag(id)
+                        Text(LocalizedStringKey(String(format: String(localized: String.LocalizationValue("%@ (not connected)")), name ?? "Selected camera"))).tag(id)
                     }
                 }
                 .labelsHidden()
@@ -221,7 +221,7 @@ struct MenuContentView: View {
             if case .awaitingReturn = cameraPresentation,
                controller.trackingActive,
                let running = controller.activeCameraName {
-                Text("Using \(running) until it's back")
+                Text(LocalizedStringKey(L("Using %@ until it's back", running)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -296,7 +296,7 @@ struct MenuContentView: View {
         }
         if updater.updateAvailable, case .available(let release) = updater.state {
             result.append(Warning(
-                text: "Pawvis \(release.version.description) is available.",
+                text: L("Pawvis %@ is available.", release.version.description),
                 action: "Update…",
                 handler: { openSettingsInFront(tab: .about) }))
         }
@@ -316,7 +316,7 @@ struct MenuContentView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(.yellow)
                 .frame(width: 18)
-            Text(warning.text)
+            Text(LocalizedStringKey(warning.text))
                 .font(.caption)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
@@ -391,16 +391,16 @@ struct MenuContentView: View {
         switch controller.handsDetected {
         case 0: return "No hands in view"
         case 1: return modeText
-        default: return "\(controller.handsDetected) hands · \(modeText)"
+        default: return L("%d hands · %@", controller.handsDetected, modeText)
         }
     }
 
     private var modeText: String {
         if controller.settingsStore.settings.gestures.controlTrigger == .gesturesOnly {
-            return "Watching for gestures"
+            return L("Watching for gestures")
         }
-        if controller.grabbing { return "Clicking" }
-        return controller.controlArmed ? "Pointing" : "Show an open hand to control"
+        if controller.grabbing { return L("Clicking") }
+        return controller.controlArmed ? L("Pointing") : L("Show an open hand to control")
     }
 
     private var voiceStatusText: String {
@@ -408,7 +408,7 @@ struct MenuContentView: View {
         switch voice.state {
         case .off: return "Voice control (beta) off"
         case .connecting: return "Voice control starting…"
-        case .listening: return "Listening for “\(wakeWord) …”"
+        case .listening: return L("Listening for “%@ …”", wakeWord)
         case .resolving: return "Working on your command…"
         case .working(let line): return line
         case .error(let message): return message

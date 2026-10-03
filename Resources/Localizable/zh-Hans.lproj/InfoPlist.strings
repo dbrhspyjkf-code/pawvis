@@ -1,0 +1,4 @@
+/* 权限弹窗文案 */
+"NSCameraUsageDescription" = "Pawvis 使用摄像头追踪手部手势。画面完全在这台 Mac 上处理，绝不会离开本机。";
+"NSMicrophoneUsageDescription" = "Pawvis 使用麦克风进行语音控制。语音识别完全在这台 Mac 上运行，音频绝不会离开本机。";
+"NSSpeechRecognitionUsageDescription" = "Pawvis 使用设备端语音识别来理解你的语音指令和听写。";

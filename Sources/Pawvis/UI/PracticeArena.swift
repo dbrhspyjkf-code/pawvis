@@ -312,7 +312,7 @@ struct PracticeBoard: View {
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(.tint)
                 .position(x: rect.maxX + 46, y: rect.midY)
-            Text(goingDown ? "the treat is down here" : "back to the top")
+            Text(goingDown ? L("the treat is down here") : L("back to the top"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

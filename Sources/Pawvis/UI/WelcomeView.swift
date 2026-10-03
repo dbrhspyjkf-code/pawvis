@@ -219,8 +219,8 @@ struct WelcomeView: View {
             .foregroundStyle(.tint)
             .frame(width: 96, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.callout.weight(.semibold))
-                Text(caption)
+                Text(LocalizedStringKey(title)).font(.callout.weight(.semibold))
+                Text(LocalizedStringKey(caption))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -288,7 +288,7 @@ struct WelcomeView: View {
                 Image(systemName: icon)
                     .foregroundStyle(.tint)
                     .frame(width: 20)
-                Text(title).font(.headline)
+                Text(LocalizedStringKey(title)).font(.headline)
                 Spacer()
                 trailing()
             }

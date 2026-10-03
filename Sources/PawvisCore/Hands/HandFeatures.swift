@@ -17,10 +17,10 @@ public enum PointerSource: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .palmCenter: return "Palm (steady)"
-        case .thumbTip: return "Thumb tip"
-        case .indexTip: return "Index fingertip"
-        case .pinchMidpoint: return "Pinch midpoint (thumb and index)"
+        case .palmCenter: return String(localized: "Palm (steady)")
+        case .thumbTip: return String(localized: "Thumb tip")
+        case .indexTip: return String(localized: "Index fingertip")
+        case .pinchMidpoint: return String(localized: "Pinch midpoint (thumb and index)")
         }
     }
 
@@ -28,10 +28,10 @@ public enum PointerSource: String, Codable, CaseIterable, Sendable {
     /// and the settings captions stay honest whichever source is chosen.
     public var inlineName: String {
         switch self {
-        case .palmCenter: return "palm"
-        case .thumbTip: return "thumb tip"
-        case .indexTip: return "index fingertip"
-        case .pinchMidpoint: return "pinch midpoint"
+        case .palmCenter: return String(localized: "palm")
+        case .thumbTip: return String(localized: "thumb tip")
+        case .indexTip: return String(localized: "index fingertip")
+        case .pinchMidpoint: return String(localized: "pinch midpoint")
         }
     }
 }

@@ -68,11 +68,11 @@ public struct GestureAction: Codable, Equatable, Sendable {
 
         public var displayName: String {
             switch self {
-            case .desktops: return "Desktops & Mission Control"
-            case .window: return "Window"
-            case .navigation: return "Navigate & media"
-            case .pawvis: return "Pawvis"
-            case .custom: return "Custom"
+            case .desktops: return String(localized: "Desktops & Mission Control")
+            case .window: return String(localized: "Window")
+            case .navigation: return String(localized: "Navigate & media")
+            case .pawvis: return String(localized: "Pawvis")
+            case .custom: return String(localized: "Custom")
             }
         }
     }
@@ -115,52 +115,52 @@ public struct GestureAction: Codable, Equatable, Sendable {
         guard kind.needsArgument else { return kind.displayName }
         let trimmed = argument.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return kind.displayName }
-        return "\(kind.displayName): \(trimmed)"
+        return String(format: String(localized: "%1$@: %2$@"), kind.displayName, trimmed)
     }
 
     /// The short line the status pill flashes when the gesture fires.
     public var feedback: String {
         switch kind {
-        case .desktopLeft: return "Desktop left"
-        case .desktopRight: return "Desktop right"
-        case .missionControl: return "Mission Control"
-        case .appWindows: return "App windows"
-        case .showDesktop: return "Show desktop"
-        case .windowLeftHalf: return "Window → left half"
-        case .windowRightHalf: return "Window → right half"
-        case .windowTopHalf: return "Window → top half"
-        case .windowBottomHalf: return "Window → bottom half"
-        case .windowLeftTwoThirds: return "Window → left two thirds"
-        case .windowRightTwoThirds: return "Window → right two thirds"
-        case .windowLeftThird: return "Window → left third"
-        case .windowRightThird: return "Window → right third"
-        case .windowTopLeftQuarter: return "Window → top left"
-        case .windowTopRightQuarter: return "Window → top right"
-        case .windowBottomLeftQuarter: return "Window → bottom left"
-        case .windowBottomRightQuarter: return "Window → bottom right"
-        case .windowMaximize: return "Window → full screen size"
-        case .windowCenter: return "Window centered"
-        case .windowMinimize: return "Window minimized"
-        case .windowNextDisplay: return "Window → next display"
-        case .pressReturn: return "Pressed Return"
-        case .pressEscape: return "Pressed Escape"
-        case .browserBack: return "Back"
-        case .browserForward: return "Forward"
-        case .previousTab: return "Previous tab"
-        case .nextTab: return "Next tab"
-        case .playPause: return "Play / pause"
-        case .volumeUp: return "Volume up"
-        case .volumeDown: return "Volume down"
-        case .volumeMute: return "Volume muted"
-        case .brightnessUp: return "Brightness up"
-        case .brightnessDown: return "Brightness down"
-        case .stopTracking: return "Tracking stopped"
-        case .toggleVoiceControl: return "Voice control toggled"
-        case .openApp: return "Opening \(argument.trimmingCharacters(in: .whitespaces))"
-        case .runShellCommand: return "Running command"
+        case .desktopLeft: return String(localized: "Desktop left")
+        case .desktopRight: return String(localized: "Desktop right")
+        case .missionControl: return String(localized: "Mission Control")
+        case .appWindows: return String(localized: "App windows")
+        case .showDesktop: return String(localized: "Show desktop")
+        case .windowLeftHalf: return String(localized: "Window → left half")
+        case .windowRightHalf: return String(localized: "Window → right half")
+        case .windowTopHalf: return String(localized: "Window → top half")
+        case .windowBottomHalf: return String(localized: "Window → bottom half")
+        case .windowLeftTwoThirds: return String(localized: "Window → left two thirds")
+        case .windowRightTwoThirds: return String(localized: "Window → right two thirds")
+        case .windowLeftThird: return String(localized: "Window → left third")
+        case .windowRightThird: return String(localized: "Window → right third")
+        case .windowTopLeftQuarter: return String(localized: "Window → top left")
+        case .windowTopRightQuarter: return String(localized: "Window → top right")
+        case .windowBottomLeftQuarter: return String(localized: "Window → bottom left")
+        case .windowBottomRightQuarter: return String(localized: "Window → bottom right")
+        case .windowMaximize: return String(localized: "Window → full screen size")
+        case .windowCenter: return String(localized: "Window centered")
+        case .windowMinimize: return String(localized: "Window minimized")
+        case .windowNextDisplay: return String(localized: "Window → next display")
+        case .pressReturn: return String(localized: "Pressed Return")
+        case .pressEscape: return String(localized: "Pressed Escape")
+        case .browserBack: return String(localized: "Back")
+        case .browserForward: return String(localized: "Forward")
+        case .previousTab: return String(localized: "Previous tab")
+        case .nextTab: return String(localized: "Next tab")
+        case .playPause: return String(localized: "Play / pause")
+        case .volumeUp: return String(localized: "Volume up")
+        case .volumeDown: return String(localized: "Volume down")
+        case .volumeMute: return String(localized: "Volume muted")
+        case .brightnessUp: return String(localized: "Brightness up")
+        case .brightnessDown: return String(localized: "Brightness down")
+        case .stopTracking: return String(localized: "Tracking stopped")
+        case .toggleVoiceControl: return String(localized: "Voice control toggled")
+        case .openApp: return String(format: String(localized: "Opening %@"), argument.trimmingCharacters(in: .whitespaces))
+        case .runShellCommand: return String(localized: "Running command")
         case .keyboardShortcut:
-            if let chord = keyChord { return "Pressed \(ShortcutParser.display(chord))" }
-            return "Shortcut not understood"
+            if let chord = keyChord { return String(format: String(localized: "Pressed %@"), ShortcutParser.display(chord)) }
+            return String(localized: "Shortcut not understood")
         }
     }
 }
@@ -196,44 +196,44 @@ extension GestureAction.Kind {
 
     public var displayName: String {
         switch self {
-        case .desktopLeft: return "Desktop to the left"
-        case .desktopRight: return "Desktop to the right"
-        case .missionControl: return "Mission Control"
-        case .appWindows: return "App windows (Exposé)"
-        case .showDesktop: return "Show desktop"
-        case .windowLeftHalf: return "Window: left half"
-        case .windowRightHalf: return "Window: right half"
-        case .windowTopHalf: return "Window: top half"
-        case .windowBottomHalf: return "Window: bottom half"
-        case .windowLeftTwoThirds: return "Window: left two thirds"
-        case .windowRightTwoThirds: return "Window: right two thirds"
-        case .windowLeftThird: return "Window: left third"
-        case .windowRightThird: return "Window: right third"
-        case .windowTopLeftQuarter: return "Window: top-left quarter"
-        case .windowTopRightQuarter: return "Window: top-right quarter"
-        case .windowBottomLeftQuarter: return "Window: bottom-left quarter"
-        case .windowBottomRightQuarter: return "Window: bottom-right quarter"
-        case .windowMaximize: return "Window: fill the screen"
-        case .windowCenter: return "Window: center it"
-        case .windowMinimize: return "Window: minimize"
-        case .windowNextDisplay: return "Window: next display"
-        case .pressReturn: return "Press Return (confirm)"
-        case .pressEscape: return "Press Escape (dismiss)"
-        case .browserBack: return "Back (⌘[)"
-        case .browserForward: return "Forward (⌘])"
-        case .previousTab: return "Previous tab"
-        case .nextTab: return "Next tab"
-        case .playPause: return "Play / pause media"
-        case .volumeUp: return "Volume up"
-        case .volumeDown: return "Volume down"
-        case .volumeMute: return "Mute"
-        case .brightnessUp: return "Brightness up"
-        case .brightnessDown: return "Brightness down"
-        case .stopTracking: return "Stop hand tracking"
-        case .toggleVoiceControl: return "Start / stop voice control"
-        case .openApp: return "Open app"
-        case .runShellCommand: return "Run shell command"
-        case .keyboardShortcut: return "Press keyboard shortcut"
+        case .desktopLeft: return String(localized: "Desktop to the left")
+        case .desktopRight: return String(localized: "Desktop to the right")
+        case .missionControl: return String(localized: "Mission Control")
+        case .appWindows: return String(localized: "App windows (Exposé)")
+        case .showDesktop: return String(localized: "Show desktop")
+        case .windowLeftHalf: return String(localized: "Window: left half")
+        case .windowRightHalf: return String(localized: "Window: right half")
+        case .windowTopHalf: return String(localized: "Window: top half")
+        case .windowBottomHalf: return String(localized: "Window: bottom half")
+        case .windowLeftTwoThirds: return String(localized: "Window: left two thirds")
+        case .windowRightTwoThirds: return String(localized: "Window: right two thirds")
+        case .windowLeftThird: return String(localized: "Window: left third")
+        case .windowRightThird: return String(localized: "Window: right third")
+        case .windowTopLeftQuarter: return String(localized: "Window: top-left quarter")
+        case .windowTopRightQuarter: return String(localized: "Window: top-right quarter")
+        case .windowBottomLeftQuarter: return String(localized: "Window: bottom-left quarter")
+        case .windowBottomRightQuarter: return String(localized: "Window: bottom-right quarter")
+        case .windowMaximize: return String(localized: "Window: fill the screen")
+        case .windowCenter: return String(localized: "Window: center it")
+        case .windowMinimize: return String(localized: "Window: minimize")
+        case .windowNextDisplay: return String(localized: "Window: next display")
+        case .pressReturn: return String(localized: "Press Return (confirm)")
+        case .pressEscape: return String(localized: "Press Escape (dismiss)")
+        case .browserBack: return String(localized: "Back (⌘[)")
+        case .browserForward: return String(localized: "Forward (⌘])")
+        case .previousTab: return String(localized: "Previous tab")
+        case .nextTab: return String(localized: "Next tab")
+        case .playPause: return String(localized: "Play / pause media")
+        case .volumeUp: return String(localized: "Volume up")
+        case .volumeDown: return String(localized: "Volume down")
+        case .volumeMute: return String(localized: "Mute")
+        case .brightnessUp: return String(localized: "Brightness up")
+        case .brightnessDown: return String(localized: "Brightness down")
+        case .stopTracking: return String(localized: "Stop hand tracking")
+        case .toggleVoiceControl: return String(localized: "Start / stop voice control")
+        case .openApp: return String(localized: "Open app")
+        case .runShellCommand: return String(localized: "Run shell command")
+        case .keyboardShortcut: return String(localized: "Press keyboard shortcut")
         }
     }
 }

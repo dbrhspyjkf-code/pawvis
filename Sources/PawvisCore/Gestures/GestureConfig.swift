@@ -19,9 +19,9 @@ public enum ControlTrigger: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .openHand: return "Open hand"
-        case .anyHand: return "Any detected hand"
-        case .gesturesOnly: return "Never — custom gestures only"
+        case .openHand: return String(localized: "Open hand")
+        case .anyHand: return String(localized: "Any detected hand")
+        case .gesturesOnly: return String(localized: "Never — custom gestures only")
         }
     }
 }

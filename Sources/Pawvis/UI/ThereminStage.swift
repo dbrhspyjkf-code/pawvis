@@ -38,7 +38,7 @@ struct ThereminStage: View {
                         Image(systemName: isOn ? "hand.raised.fill" : "power")
                             .font(.title)
                             .foregroundStyle(.white.opacity(0.8))
-                        Text(placard)
+                        Text(LocalizedStringKey(placard))
                             .font(.callout.weight(.medium))
                             .multilineTextAlignment(.center)
                             .foregroundStyle(.white.opacity(0.85))
@@ -231,7 +231,7 @@ private struct StageDrawing: View {
             if hand.closed {
                 context.fill(Path(ellipseIn: CGRect(x: palm.x - 4, y: palm.y - 4, width: 8, height: 8)), with: .color(ringColor))
             }
-            let label = Text(hand.role == .pitch ? "pitch" : "volume")
+            let label = Text(hand.role == .pitch ? L("pitch") : L("volume"))
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundColor(ringColor.opacity(0.9))
             context.draw(context.resolve(label), at: CGPoint(x: palm.x, y: palm.y + 22), anchor: .center)

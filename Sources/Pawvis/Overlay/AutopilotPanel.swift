@@ -155,7 +155,7 @@ final class AutopilotPanel {
                 } else if !model.lines.isEmpty {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(model.lines.enumerated()), id: \.offset) { _, line in
-                            Text(line)
+                            Text(LocalizedStringKey(line))
                                 .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1)

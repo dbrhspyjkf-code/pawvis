@@ -57,14 +57,14 @@ final class GestureActionRunner {
                 guard let self else { return }
                 self.onFollowUp?(await self.spaces.switchDesktop(direction))
             }
-            return action.kind == .desktopLeft ? "Desktop left…" : "Desktop right…"
+            return action.kind == .desktopLeft ? L("Desktop left…") : L("Desktop right…")
 
         case .windowLeftHalf, .windowRightHalf, .windowTopHalf, .windowBottomHalf,
              .windowLeftTwoThirds, .windowRightTwoThirds, .windowLeftThird, .windowRightThird,
              .windowTopLeftQuarter, .windowTopRightQuarter,
              .windowBottomLeftQuarter, .windowBottomRightQuarter,
              .windowMaximize, .windowCenter, .windowMinimize, .windowNextDisplay:
-            return placer.perform(action.kind) ? action.feedback : "No window to move"
+            return placer.perform(action.kind) ? action.feedback : L("No window to move")
 
         case .stopTracking:
             stopTracking?()
@@ -82,7 +82,7 @@ final class GestureActionRunner {
 
         case .keyboardShortcut:
             guard let chord = action.keyChord, TextTyper.canPress(chord) else {
-                return "Shortcut “\(action.argument)” not understood"
+                return L("Shortcut “%@” not understood", action.argument)
             }
             typer.press(chord)
             return action.feedback
@@ -97,9 +97,9 @@ final class GestureActionRunner {
 
     private func openApp(named name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return "No app configured" }
+        guard !trimmed.isEmpty else { return L("No app configured") }
         guard let url = AppCatalog.resolve(spokenName: trimmed) else {
-            return "Couldn't find “\(trimmed)”"
+            return L("Couldn't find “%@”", trimmed)
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
@@ -108,7 +108,7 @@ final class GestureActionRunner {
                 Log.app.error("Gesture openApp \(trimmed) failed: \(error.localizedDescription)")
             }
         }
-        return "Opening \(url.deletingPathExtension().lastPathComponent)"
+        return L("Opening %@", url.deletingPathExtension().lastPathComponent)
     }
 
     /// Fire-and-forget through a login shell, so the user's PATH (brew and
@@ -116,7 +116,7 @@ final class GestureActionRunner {
     /// hatch, and it runs exactly what was typed into Settings, as the user.
     private func runShellCommand(_ command: String) -> String {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "No command configured" }
+        guard !trimmed.isEmpty else { return L("No command configured") }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-lc", trimmed]
@@ -131,9 +131,9 @@ final class GestureActionRunner {
             try process.run()
         } catch {
             Log.app.error("Gesture command failed to launch: \(error.localizedDescription)")
-            return "Command failed to launch"
+            return L("Command failed to launch")
         }
         let summary = trimmed.count > 32 ? String(trimmed.prefix(32)) + "…" : trimmed
-        return "Ran: \(summary)"
+        return L("Ran: %@", summary)
     }
 }

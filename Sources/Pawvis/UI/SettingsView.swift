@@ -14,14 +14,19 @@ import SwiftUI
 // below. Do not add bare `Picker("Long label", …)` or `TextField("Long label",
 // …)` to a Form — see AGENTS.md.
 
+
 /// Wrapping secondary text. Never truncates: `fixedSize(vertical:)` lets it
 /// grow to as many lines as it needs.
+///
+/// Also the localization seam: captions arrive as plain `String` (which
+/// `Text` would NOT localize — only literals do), so the lookup happens
+/// here, with the English text as the key.
 struct CaptionText: View {
     let text: String
     init(_ text: String) { self.text = text }
 
     var body: some View {
-        Text(text)
+        Text(LocalizedStringKey(text))
             .font(.caption)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -37,7 +42,7 @@ struct SettingRow<Control: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             control()
@@ -57,7 +62,10 @@ struct SettingToggle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Toggle(title, isOn: $isOn)
+            // A plain-`String` Toggle title binds the non-localizing init;
+            // forcing the LocalizedStringKey one keeps the label in the
+            // localization seam with everything else.
+            Toggle(LocalizedStringKey(title), isOn: $isOn)
                 .fixedSize(horizontal: false, vertical: true)
             if let caption { CaptionText(caption) }
         }
@@ -73,7 +81,7 @@ struct LabeledSlider: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             Slider(value: $value, in: range)
@@ -187,18 +195,18 @@ private struct GeneralSettingsTab: View {
     /// picked camera is unplugged: without it the picker looks stuck on a
     /// device that is gone, when in fact tracking carried on somewhere else.
     private var cameraCaption: String {
-        var caption = "Automatic uses your Mac's built-in camera. Your iPhone appears here as a Continuity Camera whenever macOS offers it (nearby, same Apple Account, plugged in or not); pick it to use it. Continuity Camera streams the iPhone's rear lenses, so point the back of the phone at you: macOS gives Mac apps no way to use the iPhone's front camera, so there is no front/rear choice to offer. Pawvis never switches cameras on its own."
+        var caption = L("Automatic uses your Mac's built-in camera. Your iPhone appears here as a Continuity Camera whenever macOS offers it (nearby, same Apple Account, plugged in or not); pick it to use it. Continuity Camera streams the iPhone's rear lenses, so point the back of the phone at you: macOS gives Mac apps no way to use the iPhone's front camera, so there is no front/rear choice to offer. Pawvis never switches cameras on its own.")
         switch cameraPresentation {
         case .awaitingReturn(_, let name):
             let missing = name ?? "The selected camera"
             if controller.trackingActive, let running = controller.activeCameraName {
-                caption += " \(missing) isn't connected right now, so tracking is using \(running); the moment it's back, Pawvis returns to it."
+                caption += L(" %@ isn't connected right now, so tracking is using %@; the moment it's back, Pawvis returns to it.", missing, running)
             } else {
-                caption += " \(missing) isn't connected right now. Tracking uses the built-in camera until it's back."
+                caption += L(" %@ isn't connected right now. Tracking uses the built-in camera until it's back.", missing)
             }
         case .connected, .automatic:
             if controller.trackingActive, let running = controller.activeCameraName {
-                caption += " Using now: \(running)."
+                caption += L(" Using now: %@.", running)
             }
         }
         return caption
@@ -221,7 +229,7 @@ private struct GeneralSettingsTab: View {
                 Button("Open Login Items…") { loginItem.openLoginItemsSettings() }
             }
             if let error = loginItem.lastError {
-                CaptionText("Couldn’t change the login item: \(error)")
+                CaptionText(L("Couldn’t change the login item: %@", error))
             }
 
             Divider()
@@ -239,7 +247,7 @@ private struct GeneralSettingsTab: View {
                     // blank — which reads as a broken setting rather than as
                     // a camera that is merely unplugged.
                     if case .awaitingReturn(let id, let name) = cameraPresentation {
-                        Text("\(name ?? "Selected camera") (not connected)").tag(id)
+                        Text(LocalizedStringKey(L("%@ (not connected)", name ?? "Selected camera"))).tag(id)
                     }
                 }
             }
@@ -421,7 +429,7 @@ private struct MouseSettingsTab: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Click — mouse tap")
                     .font(.callout)
-                CaptionText("Hold your hand open and dip your index finger like tapping a mouse button — keep the others up. Measured against the middle finger, so tilting your whole hand can't click. The cursor rides your \(store.settings.gestures.pointerSource.inlineName).")
+                CaptionText(L("Hold your hand open and dip your index finger like tapping a mouse button — keep the others up. Measured against the middle finger, so tilting your whole hand can't click. The cursor rides your %@.", store.settings.gestures.pointerSource.inlineName))
             }
 
             LabeledSlider(
@@ -526,7 +534,7 @@ private struct MouseSettingsTab: View {
 
             LabeledSlider(
                 label: "Dwell time",
-                caption: "\(String(format: "%.1f", store.settings.gestures.dwellSeconds)) s of holding still before the click fires. Shorter clicks sooner but fires more easily while you rest; longer is calmer but slower.",
+                caption: L("%.1f s of holding still before the click fires. Shorter clicks sooner but fires more easily while you rest; longer is calmer but slower.", store.settings.gestures.dwellSeconds),
                 value: $store.settings.gestures.dwellSeconds,
                 range: 0.5...3.0)
                 .disabled(!store.settings.gestures.dwellClickEnabled)
@@ -577,25 +585,23 @@ private struct MouseSettingsTab: View {
 @MainActor
 private enum AgentRiskCopy {
     static func title(_ tool: AgentCLIExecutor.Tool) -> String {
-        "Hand every spoken command to \(tool.displayName)?"
+        L("Hand every spoken command to %@?", tool.displayName)
     }
 
     /// Short form for the always-visible warning box in Settings.
     static func short(tool: AgentCLIExecutor.Tool, wake: String) -> String {
-        "High risk: \(tool.displayName) runs with ALL permission checks bypassed. It never asks you to confirm anything, it just does what it was told, as you, with your files and your logged-in sessions. A misheard command still runs. Only “\(wake), stop listening” stays local, and what it does is your responsibility."
+        L("High risk: %@ runs with ALL permission checks bypassed. It never asks you to confirm anything, it just does what it was told, as you, with your files and your logged-in sessions. A misheard command still runs. Only “%@, stop listening” stays local, and what it does is your responsibility.", tool.displayName, wake)
     }
 
     /// Long form for the dialog the user has to accept.
     static func body(tool: AgentCLIExecutor.Tool, wake: String) -> String {
-        """
-        \(tool.displayName) is launched with its own permission prompts turned off, so nothing pauses to confirm anything. It carries out what it was handed, as you, with your files, your logged-in sessions and your credentials: deleting or rewriting files, installing software, running shell commands, opening apps, sending things on your behalf.
+        String(format: String(localized: "%1$@ is launched with its own permission prompts turned off, so nothing pauses to confirm anything. It carries out what it was handed, as you, with your files, your logged-in sessions and your credentials: deleting or rewriting files, installing software, running shell commands, opening apps, sending things on your behalf."), tool.displayName)
 
-        Everything you say after “\(wake)” is sent to it, and speech recognition is not perfect, so a misheard command is still executed. This is also the only mode that sends what you say beyond this Mac. Only “\(wake), stop listening” stays local. By default Pawvis reads each command back on screen and sends it only after you say “\(wake) yes”; switch that confirmation off in Settings → Voice and commands go the moment they are heard.
+        + String(format: String(localized: "Everything you say after “%1$@” is sent to it, and speech recognition is not perfect, so a misheard command is still executed. This is also the only mode that sends what you say beyond this Mac. Only “%1$@, stop listening” stays local. By default Pawvis reads each command back on screen and sends it only after you say “%1$@ yes”; switch that confirmation off in Settings → Voice and commands go the moment they are heard."), wake)
 
-        Stay on Apple Intelligence (on-device) if you want a handler that can only do what Pawvis itself can do.
+        + L("Stay on Apple Intelligence (on-device) if you want a handler that can only do what Pawvis itself can do.")
 
-        Turning this on is your call and your responsibility: Pawvis is provided as is, with no warranty, and its developer accepts no liability for anything done with it, intended or not. Please use it responsibly.
-        """
+        + L("Turning this on is your call and your responsibility: Pawvis is provided as is, with no warranty, and its developer accepts no liability for anything done with it, intended or not. Please use it responsibly.")
     }
 }
 
@@ -663,13 +669,13 @@ private struct VoiceControlSettingsTab: View {
                         }
                     }))
 
-            RiskNote(text: "Voice control acts on what it hears. It clicks, types, presses keys and opens apps for real, wherever the pointer and focus happen to be, and a misheard command is still a command. A multi-step command keeps acting until it finishes, hits its limits, or you say “\(wake) stop”.")
+            RiskNote(text: L("Voice control acts on what it hears. It clicks, types, presses keys and opens apps for real, wherever the pointer and focus happen to be, and a misheard command is still a command. A multi-step command keeps acting until it finishes, hits its limits, or you say “%@ stop”.", wake))
 
             Divider()
 
             SettingRow(
                 title: "Wake word",
-                caption: "Every command starts with this word — speech without it is ignored. “\(wake) go to github.com”, “\(wake) type hello”, “\(wake) press enter”, “\(wake) open Safari”, “\(wake) click”, “\(wake) scroll down”."
+                caption: L("Every command starts with this word — speech without it is ignored. “%@ go to github.com”, “%@ type hello”, “%@ press enter”, “%@ open Safari”, “%@ click”, “%@ scroll down”.", wake, wake, wake, wake, wake, wake),
             ) {
                 VStack(alignment: .leading, spacing: 5) {
                     TextField("", text: $store.settings.voiceControl.wakeWord)
@@ -713,7 +719,7 @@ private struct VoiceControlSettingsTab: View {
 
                 LabeledSlider(
                     label: "Hide after",
-                    caption: "\(String(format: "%.1f", store.settings.voiceControl.transcriptOverlaySeconds)) s after an utterance completes.",
+                    caption: L("%.1f s after an utterance completes.", store.settings.voiceControl.transcriptOverlaySeconds),
                     value: $store.settings.voiceControl.transcriptOverlaySeconds,
                     range: 1.0...10.0)
                 .disabled(store.settings.voiceControl.transcriptOverlayManualDismiss)
@@ -727,7 +733,7 @@ private struct VoiceControlSettingsTab: View {
             Divider()
 
             SettingRow(
-                title: "Commands after “\(wake)” are handled by",
+                title: L("Commands after “%@” are handled by", wake),
                 caption: agentPickerCaption
             ) {
                 Picker("", selection: Binding(
@@ -757,23 +763,23 @@ private struct VoiceControlSettingsTab: View {
                 RiskNote(text: AgentRiskCopy.short(tool: tool, wake: wake))
 
                 if let path = AgentCLIExecutor.binaryPath(for: tool) {
-                    CaptionText("Found \(tool.displayName) at \(path).")
+                    CaptionText(L("Found %@ at %@.", tool.displayName, path))
                 } else {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.yellow)
-                        CaptionText("\(tool.displayName) wasn't found on this Mac — install it (and sign in) or pick another handler.")
+                        CaptionText(L("%@ wasn't found on this Mac — install it (and sign in) or pick another handler.", tool.displayName))
                     }
                 }
 
                 SettingToggle(
                     title: "Confirm before sending to the agent",
-                    caption: "The command is read back in the top-of-screen capsule and sent only after you say “\(wake) yes” (“\(wake) no” cancels, and so do ten seconds of silence). Off: everything after the wake word goes to \(tool.displayName) the moment it is heard.",
+                    caption: L("The command is read back in the top-of-screen capsule and sent only after you say “%@ yes” (“%@ no” cancels, and so do ten seconds of silence). Off: everything after the wake word goes to %@ the moment it is heard.", wake, wake, tool.displayName),
                     isOn: $store.settings.voiceControl.agentConfirm)
 
                 LabeledSlider(
                     label: "Agent timeout",
-                    caption: "Give up on a background run after \(Int(store.settings.voiceControl.agentTimeoutSeconds)) s.",
+                    caption: L("Give up on a background run after %d s.", Int(store.settings.voiceControl.agentTimeoutSeconds)),
                     value: $store.settings.voiceControl.agentTimeoutSeconds,
                     range: 30...300)
 
@@ -782,7 +788,7 @@ private struct VoiceControlSettingsTab: View {
 
             SettingToggle(
                 title: "Apple Intelligence autopilot",
-                caption: "Commands the grammar doesn't match are carried out step by step: Pawvis looks at the screen, acts, then looks again until the request is done (“\(wake) open Notes and start a new note”). Up to 8 steps per command, entirely on this Mac. Say “\(wake) stop” to cancel a run.",
+                caption: L("Commands the grammar doesn't match are carried out step by step: Pawvis looks at the screen, acts, then looks again until the request is done (“%@ open Notes and start a new note”). Up to 8 steps per command, entirely on this Mac. Say “%@ stop” to cancel a run.", wake, wake),
                 isOn: $store.settings.voiceControl.visualContextEnabled)
                 .disabled(!store.settings.voiceControl.agentExecutor.isEmpty)
 
@@ -872,10 +878,10 @@ private struct VoiceActivitySection: View {
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 8) {
-                CaptionText("The last \(VoiceActivityLog.cap) voice events, kept in memory only: nothing is written to disk, and the list clears when Pawvis quits. Speech without the wake word is counted, never recorded. Copy puts the log on the clipboard for a bug report, and a quoted transcript can be pasted into Pawvis --wake-eval to debug a missed wake.")
+                CaptionText(L("The last %d voice events, kept in memory only: nothing is written to disk, and the list clears when Pawvis quits. Speech without the wake word is counted, never recorded. Copy puts the log on the clipboard for a bug report, and a quoted transcript can be pasted into Pawvis --wake-eval to debug a missed wake.", VoiceActivityLog.cap))
 
                 if log.ignoredCount > 0 {
-                    Text(log.ignoredSummary)
+                    Text(LocalizedStringKey(log.ignoredSummary))
                         .font(.caption.monospaced())
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -942,7 +948,7 @@ private struct AgentSessionsSection: View {
             Text("Background agent sessions")
                 .font(.callout)
             if manager.sessions.isEmpty {
-                CaptionText("None right now. While \(tool.displayName) is working on a spoken command, the run shows here — and in the panel at the bottom-right of your screen — with its live output and a Cancel button.")
+                CaptionText(L("None right now. While %@ is working on a spoken command, the run shows here — and in the panel at the bottom-right of your screen — with its live output and a Cancel button.", tool.displayName))
             } else {
                 ForEach(manager.sessions) { session in
                     HStack(alignment: .top, spacing: 10) {
@@ -1022,7 +1028,7 @@ private struct AboutTab: View {
                 Text("Touch-free hand control for your Mac")
                     .italic()
                     .foregroundStyle(.secondary)
-                Text("Version \(AppVersion.current)")
+                Text(LocalizedStringKey(L("Version %@", AppVersion.current)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

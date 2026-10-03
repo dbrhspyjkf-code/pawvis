@@ -36,6 +36,20 @@ fi
 if [[ -f Resources/claw-closed.png ]]; then
     cp Resources/claw-closed.png "$APP/Contents/Resources/"
 fi
+# Localizations: every <lang>.lproj under Resources/Localizable lands in the
+# bundle as a first-class localization (Bundle.main resolves them natively;
+# a bare `swift run` binary simply finds none and stays English). The keys
+# are the English strings themselves, so a missing translation degrades to
+# the source text rather than to a raw key.
+for lproj in Resources/Localizable/*.lproj; do
+    [[ -d "$lproj" ]] || continue
+    lang="$(basename "$lproj" .lproj)"
+    mkdir -p "$APP/Contents/Resources/$lang.lproj"
+    for strings in "$lproj"/*.strings; do
+        [[ -f "$strings" ]] || continue
+        cp "$strings" "$APP/Contents/Resources/$lang.lproj/"
+    done
+done
 # The Gesture Guide's posed hands, taken from the site's own copies so the
 # guide and the gestures grid can never show different poses. Flattened into
 # Resources/ with a prefix because the bundle has no subfolders; the app
