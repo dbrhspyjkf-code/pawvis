@@ -178,11 +178,16 @@ public struct GestureConfig: Codable, Equatable, Sendable {
 
     // MARK: Click timing
     /// Two clicks within this interval (and within `doubleClickSlop`) become a
-    /// double-click (macOS default ballpark).
-    public var doubleClickInterval: TimeInterval = 0.45
+    /// double-click. A hand in the air needs a longer beat between dips than a
+    /// mouse button ever did — the release debounce eats ~130 ms of the window
+    /// on its own — so this rides above the macOS ballpark; apps see the
+    /// chained clickCount, not the timing, so the extra room costs nothing.
+    public var doubleClickInterval: TimeInterval = 0.60
     /// Max cursor travel (screen-normalized) between clicks that still chains
-    /// into a double-click.
-    public var doubleClickSlop: Double = 0.025
+    /// into a double-click. In-air hands drift between dips no mouse ever
+    /// does; 4% of the screen is still smaller than neighboring targets, so
+    /// the wider tolerance buys chaining without fusing distinct clicks.
+    public var doubleClickSlop: Double = 0.040
     /// Cursor travel (screen-normalized) beyond which a pinch starts dragging.
     /// Below this the cursor holds still, so quick clicks don't micro-drag.
     public var dragActivationDistance: Double = 0.010

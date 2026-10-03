@@ -616,6 +616,18 @@ final class GestureEngineTests: XCTestCase {
         XCTAssertEqual(downs(c4).map(\.1), [1], "after a triple the chain restarts")
     }
 
+    func testAirPacedSecondClickChains() {
+        // The in-air pacing a hand actually manages: a little over half a
+        // second between dips (the release debounce eats into the old
+        // 0.45 s window) and 3% of screen drift from the palm settling —
+        // both outside the mouse ballpark, both inside the widened window.
+        feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
+        _ = tapClick(at: Vec2(0.50, 0.7), from: 0.1)
+        feedFrames([SyntheticHand.mouseTap(indexDown: false, wrist: Vec2(0.53, 0.7))], from: 0.30, count: 3)
+        let c2 = tapClick(at: Vec2(0.53, 0.7), from: 0.78)
+        XCTAssertEqual(downs(c2).map(\.1), [2], "air-paced second click chains to double")
+    }
+
     func testSlowSecondClickIsSingle() {
         feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
         _ = tapClick(from: 0.1)
