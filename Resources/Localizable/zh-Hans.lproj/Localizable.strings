@@ -781,3 +781,9 @@
 "Couldn't read the desktop layout" = "无法读取桌面布局";
 "Couldn't find the active desktop" = "找不到当前桌面";
 "Desktop switching isn't available on this macOS" = "此 macOS 版本不支持桌面切换";
+
+/* ===== 缩放动作 ===== */
+"Zoom in" = "放大";
+"Zoom out" = "缩小";
+"Zoomed in" = "已放大";
+"Zoomed out" = "已缩小";

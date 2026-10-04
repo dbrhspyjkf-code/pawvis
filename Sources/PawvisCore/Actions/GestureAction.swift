@@ -29,6 +29,10 @@ public struct GestureAction: Codable, Equatable, Sendable {
         case playPause
         case volumeUp, volumeDown, volumeMute
         case brightnessUp, brightnessDown
+        /// One step of pinch-zoom at the pointer, the same synthesized
+        /// magnify stream the two-palm zoom drives — bindable to any
+        /// gesture (a trained pinch, say) as a one-shot step.
+        case zoomIn, zoomOut
 
         // Pawvis itself.
         case stopTracking, toggleVoiceControl
@@ -154,6 +158,8 @@ public struct GestureAction: Codable, Equatable, Sendable {
         case .volumeMute: return String(localized: "Volume muted")
         case .brightnessUp: return String(localized: "Brightness up")
         case .brightnessDown: return String(localized: "Brightness down")
+        case .zoomIn: return String(localized: "Zoomed in")
+        case .zoomOut: return String(localized: "Zoomed out")
         case .stopTracking: return String(localized: "Tracking stopped")
         case .toggleVoiceControl: return String(localized: "Voice control toggled")
         case .openApp: return String(format: String(localized: "Opening %@"), argument.trimmingCharacters(in: .whitespaces))
@@ -178,7 +184,8 @@ extension GestureAction.Kind {
             return .window
         case .pressReturn, .pressEscape, .browserBack, .browserForward,
              .previousTab, .nextTab, .playPause,
-             .volumeUp, .volumeDown, .volumeMute, .brightnessUp, .brightnessDown:
+             .volumeUp, .volumeDown, .volumeMute, .brightnessUp, .brightnessDown,
+             .zoomIn, .zoomOut:
             return .navigation
         case .stopTracking, .toggleVoiceControl:
             return .pawvis
@@ -229,6 +236,8 @@ extension GestureAction.Kind {
         case .volumeMute: return String(localized: "Mute")
         case .brightnessUp: return String(localized: "Brightness up")
         case .brightnessDown: return String(localized: "Brightness down")
+        case .zoomIn: return String(localized: "Zoom in")
+        case .zoomOut: return String(localized: "Zoom out")
         case .stopTracking: return String(localized: "Stop hand tracking")
         case .toggleVoiceControl: return String(localized: "Start / stop voice control")
         case .openApp: return String(localized: "Open app")

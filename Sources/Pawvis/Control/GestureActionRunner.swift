@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import Foundation
 import PawvisCore
 
@@ -25,9 +26,35 @@ final class GestureActionRunner {
     /// silences mouse output for its duration).
     var spaceSwitchInFlight: Bool { spaces.busy }
 
+    /// One step of pinch-zoom at the pointer: a short magnify stream
+    /// (began / changed / ended) through the same CGEvent layout the
+    /// two-palm zoom posts. ~0.6 of magnification per step — a visible
+    /// notch on photos, maps, PDFs, wherever the trackpad pinch works.
+    private func postZoomStep(inward: Bool) {
+        let per = 0.1
+        let steps = 6
+        let sign: Double = inward ? 1 : -1
+        func post(_ phase: ZoomPhase, _ delta: Double) {
+            guard let e = CGEvent(source: nil) else { return }
+            e.type = CGEventType(rawValue: 29)!
+            e.setIntegerValueField(CGEventField(rawValue: 110)!, value: 8)
+            e.setDoubleValueField(CGEventField(rawValue: 113)!, value: delta)
+            e.setIntegerValueField(CGEventField(rawValue: 132)!, value: phase.hidPhase)
+            e.post(tap: .cghidEventTap)
+            usleep(20_000) // past the pacing floor
+        }
+        post(.began, 0)
+        for _ in 0..<steps { post(.changed, sign * per) }
+        post(.ended, 0)
+    }
+
     /// Perform the action; the return value is what the status pill flashes.
     func perform(_ action: GestureAction) -> String {
         switch action.kind {
+        case .zoomIn, .zoomOut:
+            postZoomStep(inward: action.kind == .zoomIn)
+            return action.feedback
+
         case .playPause:
             typer.press(MediaKey.playPause)
             return action.feedback

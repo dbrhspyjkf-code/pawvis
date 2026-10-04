@@ -286,7 +286,7 @@ private extension Array {
     }
 }
 
-private extension ZoomPhase {
+extension ZoomPhase {
     /// The IOHID event phases a real trackpad pinch carries (from
     /// IOHIDEventBase.h's `IOHIDEventPhaseBits`): began 1 << 0, changed
     /// 1 << 1, ended 1 << 2.
