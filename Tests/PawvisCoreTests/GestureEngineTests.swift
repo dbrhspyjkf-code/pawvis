@@ -617,6 +617,12 @@ final class GestureEngineTests: XCTestCase {
     }
 
     func testAirPacedSecondClickChains() {
+        // The chain never outruns the SYSTEM's double-click window; lift it
+        // here so this test measures the engine's own window, not the host
+        // machine's Universal Access setting.
+        let savedSystemWindow = GestureEngine.systemDoubleClickWindow
+        GestureEngine.systemDoubleClickWindow = 2.0
+        defer { GestureEngine.systemDoubleClickWindow = savedSystemWindow }
         // The in-air pacing a hand actually manages: a little over half a
         // second between dips (the release debounce eats into the old
         // 0.45 s window) and 3% of screen drift from the palm settling —

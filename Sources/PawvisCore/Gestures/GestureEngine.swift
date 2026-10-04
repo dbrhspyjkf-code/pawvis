@@ -946,6 +946,23 @@ public final class GestureEngine {
     /// enough to catch the mid-sweep blur that fakes finger dips.
     private static let pressEngageMaxSpeed = 1.0
 
+    /// The system's own double-click window, read from Universal Access.
+    /// WindowServer recomputes synthetic click counts by REAL arrival
+    /// time, so a chain the engine builds past this window is downgraded
+    /// to single clicks on delivery (measured against Photos: a 0.15 s
+    /// synthesized chain flips the photo, a 0.7 s one does nothing, both
+    /// posted with clickState 2). The engine never chains wider than the
+    /// system will honor — a wider window would only manufacture false
+    /// successes in the trace. Sliding the system's double-click speed
+    /// toward slow raises this ceiling for real.
+    static var systemDoubleClickWindow: TimeInterval = {
+        let v = CFPreferencesCopyValue(
+            "com.apple.mouse.doubleClickThreshold" as CFString,
+            "com.apple.universalaccess" as CFString,
+            kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Double
+        return v ?? 0.5
+    }()
+
     /// How much shallower a second dip may read and still click, inside
     /// the double-click window. Sized against the measured gap: first dips
     /// bottom near 0.5, second dips near 0.9, and the plain engage bar
@@ -1512,7 +1529,7 @@ public final class GestureEngine {
         // Only the left button chains: a right click is always a single, and
         // never seeds a double-click.
         if button == .left,
-           time - lastUpTime <= config.doubleClickInterval,
+           time - lastUpTime <= min(config.doubleClickInterval, Self.systemDoubleClickWindow),
            pos.distance(to: lastUpPos) <= config.doubleClickSlop,
            lastUpClickCount < 3 { // after a triple, the chain restarts at 1
             clickCount = lastUpClickCount + 1
