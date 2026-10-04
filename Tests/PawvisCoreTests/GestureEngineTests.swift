@@ -628,6 +628,21 @@ final class GestureEngineTests: XCTestCase {
         XCTAssertEqual(downs(c2).map(\.1), [2], "air-paced second click chains to double")
     }
 
+    func testReboundingSecondDipChains() {
+        // The double-click's second dip lands while the palm is still
+        // settling from the first click — moving faster than the sweep
+        // gate allows. The window-and-slop pair exempts it: a deliberate
+        // double-click must not depend on the hand being pinned still.
+        feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
+        _ = tapClick(at: Vec2(0.5, 0.7), from: 0.1)
+        // The hand travels a little between clicks (inside the slop) —
+        // fast enough that the raw sweep gate would trip.
+        feedFrames([SyntheticHand.mouseTap(indexDown: false, wrist: Vec2(0.52, 0.7))],
+                   from: 0.30, count: 3)
+        let c2 = tapClick(at: Vec2(0.53, 0.7), from: 0.55)
+        XCTAssertEqual(downs(c2).map(\.1), [2], "a rebounding second dip still chains")
+    }
+
     func testSlowSecondClickIsSingle() {
         feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
         _ = tapClick(from: 0.1)

@@ -665,7 +665,17 @@ public final class GestureEngine {
         // clip of open-palm swipes, each killing the swipe it rode on).
         // Engage only — blocked never releases a held press, and a press
         // already down drags at any speed.
-        let sweeping = palmSweeping(features, at: frame.time)
+        // A second dip inside the double-click window rides the hand's
+        // rebound: the finger comes back down while the palm is still
+        // settling from the first click, and the sweep gate — built to
+        // stop motion-blur phantoms on a hand ARRIVING — would eat the
+        // second press of every deliberate double-click (measured:
+        // double-clicks land when the hand happens to be pinned, miss when
+        // it drifts at all). The window-and-slop pair already defines
+        // "still double-clicking", so exactly that pair exempts the gate.
+        let doubleClicking = frame.time - lastUpTime <= config.doubleClickInterval
+            && cursor.map { $0.distance(to: lastUpPos) <= config.doubleClickSlop } == true
+        let sweeping = !doubleClicking && palmSweeping(features, at: frame.time)
         // A trained gesture matching mid-dwell blocks new clicks when the
         // user gave trained gestures priority — the finger curl that IS the
         // gesture must not also be a click. Engage-only, as always.
