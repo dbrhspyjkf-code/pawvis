@@ -787,3 +787,7 @@
 "Zoom out" = "缩小";
 "Zoomed in" = "已放大";
 "Zoomed out" = "已缩小";
+
+/* ===== 悬停锚定 ===== */
+"Hover anchoring" = "悬停锚定";
+"Park the cursor once your hand holds still for a moment: while anchored, a shaking hand moves it not at all, so small targets (a next-photo arrow) stay under the pointer for repeat clicks. A deliberate move past a small radius frees it instantly." = "手保持静止片刻后，光标会停驻原地：锚定期间轻微抖动完全不会移动光标，小目标（如“下一张”箭头）稳稳留在指针下，方便连续点击。刻意移动超过小半径立即解锁。";

@@ -528,6 +528,11 @@ private struct MouseSettingsTab: View {
             Divider()
 
             SettingToggle(
+                title: "Hover anchoring",
+                caption: "Park the cursor once your hand holds still for a moment: while anchored, a shaking hand moves it not at all, so small targets (a next-photo arrow) stay under the pointer for repeat clicks. A deliberate move past a small radius frees it instantly.",
+                isOn: $store.settings.gestures.hoverAnchoringEnabled)
+
+            SettingToggle(
                 title: "Dwell click",
                 caption: "Clicking without the finger dip: park the cursor on a target, hold it still, and after the dwell time a left click fires on its own (the ring around the claw tightens as it counts down). Move the cursor away to arm the next one. It never fires while a button is held, while scrolling, or while the cursor is parked.",
                 isOn: $store.settings.gestures.dwellClickEnabled)

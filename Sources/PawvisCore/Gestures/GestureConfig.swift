@@ -155,6 +155,20 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     /// `scrollGainRange`.
     public static let zoomGainRange: ClosedRange<Double> = 0.5...5.0
 
+    // MARK: Hover anchoring
+    /// Park the cursor once the hand holds still for a moment: while
+    /// anchored, the hand's small tremor moves the cursor not at all, so
+    /// hovering a small target (a next-photo arrow) survives the shake.
+    /// A deliberate move (past the release radius) breaks the pin at once.
+    /// On by default; pairs with clicking the pinned target.
+    public var hoverAnchoringEnabled: Bool = true
+    /// How long the hand must hold still before the cursor pins.
+    public var hoverAnchoringSeconds: TimeInterval = 0.6
+    /// How far the hand may drift while pinned (screen-normalized); past
+    /// this the pin breaks and the cursor follows again. Sized between a
+    /// tremor and a deliberate move.
+    public var hoverAnchoringReleaseRadius: Double = 0.025
+
     // MARK: Dwell click
     /// Click by holding still: with cursor control armed and no button down,
     /// keeping the cursor inside a small radius for `dwellSeconds` emits one
@@ -275,6 +289,7 @@ public struct GestureConfig: Codable, Equatable, Sendable {
         case middleClickEnabled, middleClickFinger
         case scrollEnabled, scrollInvert, scrollAxes, scrollGain
         case zoomEnabled, zoomGain
+        case hoverAnchoringEnabled, hoverAnchoringSeconds, hoverAnchoringReleaseRadius
         case dwellClickEnabled, dwellSeconds
         case crissCrossDisableEnabled, crissCrossDisableCrossings
         case doubleClickInterval, doubleClickSlop, dragActivationDistance
@@ -335,6 +350,13 @@ public struct GestureConfig: Codable, Equatable, Sendable {
             scrollGain = min(max(v, Self.scrollGainRange.lowerBound), Self.scrollGainRange.upperBound)
         }
         if let v = try? c.decodeIfPresent(Bool.self, forKey: .zoomEnabled) { zoomEnabled = v }
+        if let v = try? c.decodeIfPresent(Bool.self, forKey: .hoverAnchoringEnabled) { hoverAnchoringEnabled = v }
+        if let v = try? c.decodeIfPresent(TimeInterval.self, forKey: .hoverAnchoringSeconds) {
+            hoverAnchoringSeconds = v.clamped(to: 0.2...2.0)
+        }
+        if let v = try? c.decodeIfPresent(Double.self, forKey: .hoverAnchoringReleaseRadius) {
+            hoverAnchoringReleaseRadius = v.clamped(to: 0.01...0.06)
+        }
         if let v = try? c.decodeIfPresent(Double.self, forKey: .zoomGain) {
             // Same reasoning as scrollGain: the gain multiplies straight
             // into posted magnification.

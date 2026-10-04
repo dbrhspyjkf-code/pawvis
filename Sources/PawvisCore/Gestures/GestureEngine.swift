@@ -359,6 +359,14 @@ public final class GestureEngine {
     private var pointedFrames = 0
 
     private var cursor: Vec2?
+    /// Hover anchoring: after the hand holds still for
+    /// `hoverAnchoringSeconds`, the cursor pins at its resting spot; the
+    /// tremor (inside `hoverAnchoringReleaseRadius`) moves it not at all,
+    /// so a small hover target survives the shake. A deliberate move past
+    /// the radius breaks the pin and tracking resumes. nil while unanchored.
+    private var hoverAnchor: Vec2?
+    private var stillOrigin: Vec2?
+    private var stillSince: TimeInterval = -.infinity
     /// At most one press exists at a time, whichever button owns it.
     private var press: PressState?
     private var leftButton = ButtonState()
@@ -650,6 +658,39 @@ public final class GestureEngine {
                 // fingers don't smear it around. After the press branch —
                 // a press begun upright finishes normally if the hand
                 // droops mid-drag.
+            } else if config.hoverAnchoringEnabled {
+                if let anchor = hoverAnchor {
+                    if clamped.distance(to: anchor) >= config.hoverAnchoringReleaseRadius {
+                        // A deliberate move: break the pin and follow again.
+                        hoverAnchor = nil
+                        stillOrigin = nil
+                        cursor = clamped
+                        events.append(.move(to: clamped))
+                    }
+                    // Inside the radius: pinned. The tremor moves nothing.
+                } else {
+                    // Acquire: the hand must HOLD still — drift past a small
+                    // band restarts the clock — then the cursor pins where
+                    // it rests. The pin only makes sense armed and pointing,
+                    // which this branch already guarantees.
+                    if let origin = stillOrigin {
+                        if clamped.distance(to: origin) > config.jitterDeadband * 3 {
+                            stillOrigin = clamped
+                            stillSince = frame.time
+                        } else if frame.time - stillSince >= config.hoverAnchoringSeconds {
+                            hoverAnchor = cursor ?? clamped
+                            stillOrigin = nil
+                        }
+                    } else {
+                        stillOrigin = clamped
+                        stillSince = frame.time
+                    }
+                    if hoverAnchor == nil,
+                       cursor.map({ clamped.distance(to: $0) >= config.jitterDeadband / 2 }) ?? true {
+                        cursor = clamped
+                        events.append(.move(to: clamped))
+                    }
+                }
             } else if cursor.map({ clamped.distance(to: $0) >= config.jitterDeadband / 2 }) ?? true {
                 cursor = clamped
                 events.append(.move(to: clamped))
