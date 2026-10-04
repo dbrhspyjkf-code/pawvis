@@ -187,7 +187,7 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     /// into a double-click. In-air hands drift between dips no mouse ever
     /// does; 4% of the screen is still smaller than neighboring targets, so
     /// the wider tolerance buys chaining without fusing distinct clicks.
-    public var doubleClickSlop: Double = 0.040
+    public var doubleClickSlop: Double = 0.070
     /// Cursor travel (screen-normalized) beyond which a pinch starts dragging.
     /// Below this the cursor holds still, so quick clicks don't micro-drag.
     public var dragActivationDistance: Double = 0.010
@@ -237,6 +237,26 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     public init() {}
 
     public static let `default` = GestureConfig()
+
+    /// Double-click tuning history: (0.45 s, 0.025) shipped originally,
+    /// (0.60, 0.040) and (0.75, 0.040) followed; measured in-air pacing
+    /// between dips runs 0.68-0.83 s with drift to 0.028, so the live
+    /// default is (1.0 s, 0.050). A stored value sitting exactly on a
+    /// retired pair was never hand-tuned — the slider-less fields only
+    /// ever held defaults — and rides up with the retune.
+    public static let retiredDoubleClickPairs: [(interval: TimeInterval, slop: Double)] =
+        [(0.45, 0.025), (0.60, 0.040), (0.75, 0.040), (1.0, 0.050)]
+
+    /// Adopts the retuned double-click defaults for settings still sitting
+    /// on any retired pair.
+    public mutating func adoptRetunedDoubleClickDefaults() {
+        if Self.retiredDoubleClickPairs.contains(where: {
+            $0.interval == doubleClickInterval && $0.slop == doubleClickSlop
+        }) {
+            doubleClickInterval = GestureConfig().doubleClickInterval
+            doubleClickSlop = GestureConfig().doubleClickSlop
+        }
+    }
 
     enum CodingKeys: String, CodingKey {
         case controlTrigger
@@ -380,5 +400,6 @@ public struct GestureConfig: Codable, Equatable, Sendable {
         if let v = try? c.decodeIfPresent(InteractionBox.self, forKey: .interactionBox) { interactionBox = v }
         if let v = try? c.decodeIfPresent(ReachMode.self, forKey: .reachMode) { reachMode = v }
         if let v = try? c.decodeIfPresent(Bool.self, forKey: .mirrorCamera) { mirrorCamera = v }
+        adoptRetunedDoubleClickDefaults()
     }
 }

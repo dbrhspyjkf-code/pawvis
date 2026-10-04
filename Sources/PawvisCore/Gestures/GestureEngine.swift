@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Turns a stream of camera-space `HandFrame`s into mouse events plus overlay
 /// render state. Deterministic and clock-free: all timing comes from frame
@@ -33,6 +34,8 @@ import Foundation
 /// joint, sporecaster-style slot tracking with stale reset) before running
 /// gesture logic in screen-normalized space.
 public final class GestureEngine {
+
+    private static let clickTrace = Logger(subsystem: "com.pawvis.Pawvis", category: "clickTrace")
 
     public var config: GestureConfig {
         didSet {
@@ -376,6 +379,7 @@ public final class GestureEngine {
     private var pendingEvents: [GestureEvent] = []
 
     // Double-click chaining.
+    private var lastClickTraceAt: TimeInterval = 0
     private var lastUpTime: TimeInterval = -.infinity
     private var lastUpPos: Vec2 = .zero
     private var lastUpClickCount = 0
@@ -689,11 +693,28 @@ public final class GestureEngine {
         // pose cannot.
         let zoomBlocked = zoom.active
         let ratio = armed ? clickRatio(features) : nil
+        if armed, frame.time - lastClickTraceAt > 0.2 {
+            lastClickTraceAt = frame.time
+            let r = ratio.map { String(format: "%.3f", $0) } ?? "nil"
+            let eng = leftButton.engaged
+            let zoomNow = zoom.active
+            let scrollNow = scroll.active
+            let sinceUp = frame.time - lastUpTime
+            Self.clickTrace.debug("t=\(frame.time, format: .fixed(precision: 2), privacy: .public) ratio=\(r, privacy: .public) eng=\(eng, privacy: .public) sweep=\(sweeping, privacy: .public) dbl=\(doubleClicking, privacy: .public) zoom=\(zoomNow, privacy: .public) scroll=\(scrollNow, privacy: .public) sinceUp=\(sinceUp, format: .fixed(precision: 2), privacy: .public)")
+        }
         if armed {
             let rightHeld = isHeld(.right)
             let middleHeld = isHeld(.middle)
+            // The second dip of a double-click is shallower than the first
+            // (measured: ratio bottoms near 0.92 while a first dip reaches
+            // ~0.5 — the finger is already half-curled and lands faster),
+            // so inside the double-click window the engage bar rides up by
+            // a fixed step. The window-and-slop pair defines the context;
+            // every arriving hand keeps the full bar.
+            let secondDipBoost = doubleClicking ? Self.doubleClickEngageBoost : 0
             updateButton(.left, state: &leftButton, ratio: ratio,
-                         engage: config.engageRatio, release: config.releaseRatio,
+                         engage: config.engageRatio + secondDipBoost,
+                         release: config.releaseRatio + secondDipBoost,
                          confident: engageConfident(primary.hand),
                          blocked: rightHeld || middleHeld || scroll.active
                              || crissCross.engaged || sweeping || pointedParked
@@ -924,6 +945,12 @@ public final class GestureEngine {
     /// (the hand decelerates well under this before a real dip lands), slow
     /// enough to catch the mid-sweep blur that fakes finger dips.
     private static let pressEngageMaxSpeed = 1.0
+
+    /// How much shallower a second dip may read and still click, inside
+    /// the double-click window. Sized against the measured gap: first dips
+    /// bottom near 0.5, second dips near 0.9, and the plain engage bar
+    /// (~0.675 at default sensitivity) sits between them.
+    private static let doubleClickEngageBoost = 0.24
 
     private var lastPalmSample: (point: Vec2, time: TimeInterval)?
 
@@ -1491,6 +1518,9 @@ public final class GestureEngine {
             clickCount = lastUpClickCount + 1
         }
         press = PressState(button: button, downAt: pos, downTime: time, clickCount: clickCount)
+        let dtSinceUp = time - lastUpTime
+        let distSinceUp = pos.distance(to: lastUpPos)
+        Self.clickTrace.debug("DOWN t=\(time, format: .fixed(precision: 2), privacy: .public) pos=(\(pos.x, format: .fixed(precision: 3)),\(pos.y, format: .fixed(precision: 3)), privacy: .public) count=\(clickCount, privacy: .public) dt=\(dtSinceUp, format: .fixed(precision: 2), privacy: .public) dist=\(distSinceUp, format: .fixed(precision: 3), privacy: .public)")
         events.append(.buttonDown(button, at: pos, clickCount: clickCount))
     }
 
@@ -1498,6 +1528,7 @@ public final class GestureEngine {
                           events: inout [GestureEvent]) {
         guard let p = press, p.button == button else { return }
         let pos = cursor ?? p.downAt
+        Self.clickTrace.debug("UP t=\(time, format: .fixed(precision: 2), privacy: .public) count=\(p.clickCount, privacy: .public)")
         events.append(.buttonUp(button, at: pos, clickCount: p.clickCount))
         if button == .left {
             // A right click in the middle of a double-click must neither chain
