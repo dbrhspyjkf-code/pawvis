@@ -177,7 +177,8 @@ final class GestureEngineTests: XCTestCase {
     func testTapWindowDefaults() {
         let c = GestureConfig.default
         XCTAssertEqual(c.dragStartDelay, 0.30, accuracy: 1e-9)
-        XCTAssertEqual(c.dragIntentDistance, 0.030, accuracy: 1e-9)
+        XCTAssertEqual(c.dragIntentDistance, 0.045, accuracy: 1e-9)
+        XCTAssertEqual(c.dragActivationDistance, 0.018, accuracy: 1e-9)
         XCTAssertEqual(c.jitterDeadband, 0.004, accuracy: 1e-9)
     }
 
@@ -819,13 +820,18 @@ final class GestureEngineTests: XCTestCase {
 
     func testHoldingPastTheTapWindowLetsWobbleDrag() {
         let downAt = beginTapPress(at: Vec2(0.5, 0.7), from: 0.1)
+        // 1.5% wobble: a floating hand's drift — inside BOTH the intent
+        // distance and the float-tolerant activation, so a click survives.
         let wobbled = SyntheticHand.mouseTap(indexDown: true, wrist: Vec2(0.515, 0.7))
         XCTAssertTrue(drags(feedFrames([wobbled], from: 0.2, count: 3)).isEmpty)
 
-        // Same offset once the window has expired: the ordinary activation
-        // distance applies, so the held tap becomes a grab.
+        // The same drift after the window is STILL just drift (under the
+        // 1.8% float tolerance); a deliberate move (2.5%) is what grabs.
         let after = feedFrames([wobbled], from: 0.5, count: 2)
-        XCTAssertEqual(drags(after).count, 1, "one drag to the wobbled point, then it holds still")
+        XCTAssertTrue(drags(after).isEmpty, "floating 1.5% never becomes a drag")
+        let deliberate = feedFrames([SyntheticHand.mouseTap(indexDown: true, wrist: Vec2(0.525, 0.7))],
+                                    from: 0.55, count: 2)
+        XCTAssertEqual(drags(deliberate).count, 1, "a deliberate 2.5% move starts the drag")
 
         let moved = feedFrames([SyntheticHand.mouseTap(indexDown: true, wrist: Vec2(0.565, 0.7))],
                                from: 0.6, count: 2)

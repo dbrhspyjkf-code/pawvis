@@ -187,18 +187,26 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     /// into a double-click. In-air hands drift between dips no mouse ever
     /// does; 4% of the screen is still smaller than neighboring targets, so
     /// the wider tolerance buys chaining without fusing distinct clicks.
-    public var doubleClickSlop: Double = 0.070
-    /// Cursor travel (screen-normalized) beyond which a pinch starts dragging.
-    /// Below this the cursor holds still, so quick clicks don't micro-drag.
-    public var dragActivationDistance: Double = 0.010
+    public var doubleClickSlop: Double = 0.080
+    /// Cursor travel (screen-normalized) beyond which a press starts
+    /// dragging once the tap window has passed. Below this the cursor
+    /// holds still, so a held click doesn't micro-drag. 0.018, not the
+    /// historical 0.010: an in-air hand at rest drifts 1-2% between dips,
+    /// and at 0.010 every unsteady first press became a phantom drag,
+    /// which unwound double-clicks wholesale (measured with clickTrace:
+    /// presses that moved >1% while held never delivered a click).
+    public var dragActivationDistance: Double = 0.018
     /// Tap window: for this long after the button goes down, nothing drags and
     /// the cursor stays pinned at the press point. Movement alone was starting
     /// drags, which turned nearly every quick click into a micro-drag — a hand
     /// in the air always drifts a little while the fingers close and open.
     public var dragStartDelay: TimeInterval = 0.30
-    /// Travel inside the tap window that means the drag is deliberate (a flick,
-    /// not press wobble), starting the drag immediately.
-    public var dragIntentDistance: Double = 0.030
+    /// Travel inside the tap window that means the drag is deliberate (a
+    /// flick, not press wobble), starting the drag immediately. 0.045, not
+    /// the historical 0.030: a floating hand crosses 3% while the finger
+    /// is still coming down, and a deliberate flick crosses it easily
+    /// either way.
+    public var dragIntentDistance: Double = 0.045
     /// Minimum travel between emitted drag positions. Overlapping fingertips
     /// confuse Vision, so a held pinch shivers by a fraction of a percent;
     /// re-emitting that shiver reads as a shaking drag. Plain moves use half
@@ -245,7 +253,7 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     /// retired pair was never hand-tuned — the slider-less fields only
     /// ever held defaults — and rides up with the retune.
     public static let retiredDoubleClickPairs: [(interval: TimeInterval, slop: Double)] =
-        [(0.45, 0.025), (0.60, 0.040), (0.75, 0.040), (1.0, 0.050)]
+        [(0.45, 0.025), (0.60, 0.040), (0.75, 0.040), (1.0, 0.050), (1.2, 0.070)]
 
     /// Adopts the retuned double-click defaults for settings still sitting
     /// on any retired pair.
@@ -256,6 +264,8 @@ public struct GestureConfig: Codable, Equatable, Sendable {
             doubleClickInterval = GestureConfig().doubleClickInterval
             doubleClickSlop = GestureConfig().doubleClickSlop
         }
+        if dragActivationDistance == 0.010 { dragActivationDistance = 0.018 }
+        if dragIntentDistance == 0.030 { dragIntentDistance = 0.045 }
     }
 
     enum CodingKeys: String, CodingKey {
