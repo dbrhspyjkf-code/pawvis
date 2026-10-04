@@ -996,6 +996,11 @@ public final class GestureEngine {
     /// system will honor — a wider window would only manufacture false
     /// successes in the trace. Sliding the system's double-click speed
     /// toward slow raises this ceiling for real.
+    /// The shortest gap two DELIBERATE presses can carry: a single physical
+    /// dip's release bounces once on the way up, and that tail — 30-60 ms
+    /// after the real up — must not count as a second click.
+    private static let doubleClickMinGap: TimeInterval = 0.07
+
     static var systemDoubleClickWindow: TimeInterval = {
         let v = CFPreferencesCopyValue(
             "com.apple.mouse.doubleClickThreshold" as CFString,
@@ -1570,6 +1575,7 @@ public final class GestureEngine {
         // Only the left button chains: a right click is always a single, and
         // never seeds a double-click.
         if button == .left,
+           time - lastUpTime >= Self.doubleClickMinGap,
            time - lastUpTime <= min(config.doubleClickInterval, Self.systemDoubleClickWindow),
            pos.distance(to: lastUpPos) <= config.doubleClickSlop,
            lastUpClickCount < 3 { // after a triple, the chain restarts at 1
