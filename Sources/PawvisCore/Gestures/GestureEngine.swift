@@ -790,9 +790,17 @@ public final class GestureEngine {
             // (measured: ratio bottoms near 0.92 while a first dip reaches
             // ~0.5 — the finger is already half-curled and lands faster),
             // so inside the double-click window the engage bar rides up by
-            // a fixed step. The window-and-slop pair defines the context;
-            // every arriving hand keeps the full bar.
-            let secondDipBoost = doubleClicking ? Self.doubleClickEngageBoost : 0
+            // a fixed step. NOT for the immediate tail: a single dip's
+            // release bounces 50-90 ms after the up — as shallow as the
+            // real second dip and inside every timing window — and the
+            // boost was admitting it, chaining every plain click into a
+            // double (measured in Chrome: each deliberate single produced
+            // count 1 then count 2 at dt 0.05-0.09). Inside 120 ms the
+            // second press must dip to the FULL bar: a real quick second
+            // dip is a complete press and clears it; a bounce does not.
+            let dtSinceUpNow = frame.time - lastUpTime
+            let secondDipBoost = (doubleClicking && dtSinceUpNow >= 0.12)
+                ? Self.doubleClickEngageBoost : 0
             updateButton(.left, state: &leftButton, ratio: ratio,
                          engage: config.engageRatio + secondDipBoost,
                          release: config.releaseRatio + secondDipBoost,
