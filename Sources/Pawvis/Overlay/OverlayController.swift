@@ -175,6 +175,18 @@ final class OverlayController {
                         strokeColor: PawvisTheme.blueLight,
                         fillColor: PawvisTheme.blueLight.withAlphaComponent(0.25),
                         alpha: 1))
+                } else if config.showPinchRing, overlay.armed, overlay.isPinned,
+                          !overlay.isScrolling, !overlay.isZooming {
+                    // Hover-pinned: a thin quiet ring says "the cursor is
+                    // held still on purpose" — a sustained reach or a
+                    // deliberate move frees it.
+                    model.rings.append(.init(
+                        center: local,
+                        radius: 18,
+                        lineWidth: 1.5,
+                        strokeColor: NSColor.systemGray.withAlphaComponent(0.7),
+                        fillColor: .clear,
+                        alpha: 1))
                 } else if config.showPinchRing, overlay.armed, overlay.isZooming {
                     // Zooming: a violet ring around the parked claw says
                     // "pinch-zoom mode" — the third parked-pose ring, kept

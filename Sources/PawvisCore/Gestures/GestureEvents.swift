@@ -86,6 +86,10 @@ public struct OverlayState: Equatable, Sendable {
     /// True while the two-hand pinch-zoom pose is held: the cursor is parked
     /// and the spread between the pinches drives magnification.
     public var isZooming: Bool = false
+    /// True while the cursor is hover-pinned: it holds still by design
+    /// (a steady hand pins it against tremor), and a sustained offside
+    /// reach or a deliberate move frees it.
+    public var isPinned: Bool = false
     /// Pinch strength ramp: 0 = tips comfortably apart, 1 = pinched. Drives the
     /// closing-ring feedback around the cursor. Pinned at 1 while *any*
     /// button is down — the ring says "you are pressing", not which finger.

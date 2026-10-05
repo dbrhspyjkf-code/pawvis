@@ -73,6 +73,31 @@ final class GestureEngineHoverTests: XCTestCase {
         XCTAssertEqual(downs.count, 1, "the dip clicks while pinned")
     }
 
+    func testSustainedOffsideReleasesThePin() {
+        // Pin, then hold the hand off to one side — inside the hard radius
+        // but past the soft line — for a quarter second: reaching, not
+        // trembling, so the pin lets go and the cursor follows.
+        for i in 0..<30 {
+            _ = feed([SyntheticHand.openRelaxed(wrist: Vec2(0.5, 0.7))],
+                     at: 0.1 + Double(i) / 30)
+        }
+        var events: [GestureEvent] = []
+        for i in 0..<12 {
+            events += feed([SyntheticHand.openRelaxed(wrist: Vec2(0.518, 0.7))],
+                           at: 1.3 + Double(i) / 30).events
+        }
+        XCTAssertFalse(moves(events).isEmpty, "a sustained offside reach releases the pin")
+    }
+
+    func testPinShowsInTheOverlay() {
+        var last = OverlayState()
+        for i in 0..<30 {
+            last = feed([SyntheticHand.openRelaxed(wrist: Vec2(0.5, 0.7))],
+                        at: 0.1 + Double(i) / 30).overlay
+        }
+        XCTAssertTrue(last.isPinned, "the overlay paints the pin once acquired")
+    }
+
     func testDisabledNeverPins() {
         var config = GestureConfig.default
         config.hoverAnchoringEnabled = false

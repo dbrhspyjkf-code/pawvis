@@ -367,6 +367,11 @@ public final class GestureEngine {
     private var hoverAnchor: Vec2?
     private var stillOrigin: Vec2?
     private var stillSince: TimeInterval = -.infinity
+    /// While pinned: when the hand first held OFF to one side (inside the
+    /// hard radius but past the soft line). A hand that STAYS offside is
+    /// reaching, not trembling — the pin releases quickly. Tremor swings
+    /// both ways and never holds one side.
+    private var offsideSince: TimeInterval?
     /// At most one press exists at a time, whichever button owns it.
     private var press: PressState?
     private var leftButton = ButtonState()
@@ -660,14 +665,30 @@ public final class GestureEngine {
                 // droops mid-drag.
             } else if config.hoverAnchoringEnabled {
                 if let anchor = hoverAnchor {
-                    if clamped.distance(to: anchor) >= config.hoverAnchoringReleaseRadius {
+                    let d = clamped.distance(to: anchor)
+                    if d >= config.hoverAnchoringReleaseRadius {
                         // A deliberate move: break the pin and follow again.
                         hoverAnchor = nil
                         stillOrigin = nil
+                        offsideSince = nil
                         cursor = clamped
                         events.append(.move(to: clamped))
+                    } else if d > config.hoverAnchoringReleaseRadius * 0.55 {
+                        // Holding off to one side — reaching, not trembling.
+                        // Held for a quarter second, the pin lets go.
+                        if let since = offsideSince, frame.time - since >= 0.25 {
+                            hoverAnchor = nil
+                            stillOrigin = nil
+                            offsideSince = nil
+                            cursor = clamped
+                            events.append(.move(to: clamped))
+                        } else if offsideSince == nil {
+                            offsideSince = frame.time
+                        }
+                    } else {
+                        offsideSince = nil
                     }
-                    // Inside the radius: pinned. The tremor moves nothing.
+                    // Inside the lines: pinned. The tremor moves nothing.
                 } else {
                     // Acquire: the hand must HOLD still — drift past a small
                     // band restarts the clock — then the cursor pins where
@@ -680,6 +701,7 @@ public final class GestureEngine {
                         } else if frame.time - stillSince >= config.hoverAnchoringSeconds {
                             hoverAnchor = cursor ?? clamped
                             stillOrigin = nil
+                            offsideSince = nil
                         }
                     } else {
                         stillOrigin = clamped
@@ -810,6 +832,7 @@ public final class GestureEngine {
         overlay.isDragging = press?.dragging ?? false
         overlay.isScrolling = scroll.active
         overlay.isZooming = zoom.active
+        overlay.isPinned = hoverAnchor != nil
         overlay.closingProgress = closingProgress(for: ratio)
         overlay.dwellProgress = dwellProgress(at: frame.time)
 
