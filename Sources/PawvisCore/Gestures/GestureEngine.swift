@@ -1290,10 +1290,14 @@ public final class GestureEngine {
 
         // Hold: permissive floor, either hand may close. A hand tending
         // toward a fist (2+ curled) for the debounce ends the zoom;
-        // unreadable geometry (blur, a dropped hand's joints) holds it —
-        // only a readable close, the grace above, or a forced release may.
+        // unreadable geometry HOLDS it — palms-facing poses lose their
+        // palm joints to foreshortening for stretches of frames (state
+        // trace: op=? splay=? while the pose is plainly held), and
+        // treating those as "not holding" flapped the zoom release and
+        // re-engage, eating the spread. Only a READABLE close, the grace
+        // above, or a forced release may end it.
         let held = tracked.allSatisfy {
-            guard let f = looseFeatures(of: $0.hand) else { return false }
+            guard let f = looseFeatures(of: $0.hand) else { return true }
             return f.curledFingerCount() <= 2
         }
         if held {
@@ -1324,11 +1328,25 @@ public final class GestureEngine {
     /// anchor point: hands spread past the interaction box's edge keep
     /// zooming.
     private func palmSpread(_ tracked: [TrackedHand]) -> Double? {
-        guard tracked.count == 2,
-              let a = looseFeatures(of: tracked[0].hand)?.pointerPoint(.palmCenter),
-              let b = looseFeatures(of: tracked[1].hand)?.pointerPoint(.palmCenter)
-        else { return nil }
-        return a.distance(to: b)
+        guard tracked.count == 2 else { return nil }
+        return center(of: tracked[0].hand).distance(to: center(of: tracked[1].hand))
+    }
+
+    /// One hand's center for the spread: the palm center when the palm
+    /// joints read (confident), the wrist otherwise. Palms-facing poses
+    /// foreshorten the palm into unreadability for stretches of frames —
+    /// the wrist stays tracked through them — and the spread must keep
+    /// flowing or the zoom eats its own deltas in release/engage flaps.
+    private func center(of hand: Hand) -> Vec2 {
+        if let palm = looseFeatures(of: hand)?.pointerPoint(.palmCenter) {
+            return palm
+        }
+        // The wrist at the permissive floor; nil only if even that is gone
+        // (the tracking-loss grace owns those frames).
+        return hand.point(for: .wrist, minConfidence: config.minJointConfidence)
+            ?? hand.point(for: .thumbTip, minConfidence: config.minJointConfidence)
+            ?? hand.point(for: .wrist, minConfidence: 0.0)
+            ?? .zero
     }
 
     // MARK: - Dwell click
