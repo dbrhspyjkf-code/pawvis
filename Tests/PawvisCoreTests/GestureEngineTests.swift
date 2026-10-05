@@ -600,7 +600,7 @@ final class GestureEngineTests: XCTestCase {
                                       from: 0.55, count: 3)).count, 1)
     }
 
-    func testDoubleTripleThenWrapChaining() {
+    func testDoubleThenWrapChaining() {
         feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
         let w = Vec2(0.5, 0.7)
 
@@ -610,11 +610,13 @@ final class GestureEngineTests: XCTestCase {
         let c2 = tapClick(at: w, from: 0.30)
         XCTAssertEqual(downs(c2).map(\.1), [2], "quick second click chains to double")
 
+        // The chain stops at two: an in-air third dip is almost always a
+        // bounce, and chained triples made Photos flip and flip back.
         let c3 = tapClick(at: w, from: 0.50)
-        XCTAssertEqual(downs(c3).map(\.1), [3], "third chains to triple")
+        XCTAssertEqual(downs(c3).map(\.1), [1], "a third dip starts a fresh chain")
 
         let c4 = tapClick(at: w, from: 0.70)
-        XCTAssertEqual(downs(c4).map(\.1), [1], "after a triple the chain restarts")
+        XCTAssertEqual(downs(c4).map(\.1), [2], "and the next one pairs again")
     }
 
     func testAirPacedSecondClickChains() {
