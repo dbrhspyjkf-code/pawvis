@@ -141,6 +141,7 @@ public final class GestureEngine {
                       HandSlot(id: 1, params: config.smoothing)]
         self.effectiveInteractionBox = config.interactionBox
         self.armed = config.controlTrigger == .anyHand
+        self.hasArmedBefore = self.armed
     }
 
     // MARK: - Internal state
@@ -343,6 +344,10 @@ public final class GestureEngine {
     private var armed: Bool
     private var armFrames = 0
     private var disarmFrames = 0
+    /// Whether control has armed at least once this session: re-arming
+    /// accepts a relaxed-open hand where the first arm demands the full
+    /// pose (see `updateTrigger`).
+    private var hasArmedBefore = false
 
     /// Confirmed pointed frames to enter the pointed-pose park. Short on
     /// purpose: the first strikes of a drum land within a few frames of the
@@ -437,6 +442,7 @@ public final class GestureEngine {
         lastHandTime = -.infinity
         smoothedHandScale = nil
         armed = config.controlTrigger == .anyHand
+        hasArmedBefore = armed
         armFrames = 0
         disarmFrames = 0
         lastPalmSample = nil
@@ -763,6 +769,8 @@ public final class GestureEngine {
             let zoomNow = zoom.active
             let pinnedNow = hoverAnchor != nil
             let scrollNow = scroll.active
+            let pointedNow = pointedParked
+            let curNow = cursor.map { String(format: "(%.2f,%.2f)", $0.x, $0.y) } ?? "nil"
             let handDescs = tracked.map { th -> String in
                 let f = looseFeatures(of: th.hand)
                 let curled = f?.curledFingerCount().description ?? "?"
@@ -771,7 +779,7 @@ public final class GestureEngine {
                 let splay = f?.splayAmount().map { String(format: "%.2f", $0) } ?? "?"
                 return "curled=\(curled) open=\(open) op=\(openness) splay=\(splay)"
             }.joined(separator: " | ")
-            Self.stateTrace.debug("armed=\(armedNow, privacy: .public) zoom=\(zoomNow, privacy: .public) pin=\(pinnedNow, privacy: .public) scroll=\(scrollNow, privacy: .public) [\(handDescs, privacy: .public)]")
+            Self.stateTrace.debug("armed=\(armedNow, privacy: .public) zoom=\(zoomNow, privacy: .public) pin=\(pinnedNow, privacy: .public) scroll=\(scrollNow, privacy: .public) pointed=\(pointedNow, privacy: .public) cur=\(curNow, privacy: .public) [\(handDescs, privacy: .public)]")
         }
         let ratio = armed ? clickRatio(features) : nil
         if armed, frame.time - lastClickTraceAt > 0.2 {
@@ -984,7 +992,20 @@ public final class GestureEngine {
             middleButton = ButtonState()
         } else {
             disarmFrames = 0
-            guard armFeatures(of: hand)?.isOpenHand() == true else {
+            // Re-arming (this hand's owner held control moments ago) takes a
+            // RELAXED-open hand: state-trace showed hands held plainly up and
+            // merely relaxed reading openness 0.17-0.22, under the strict
+            // 0.29 line — so a brief tracking loss stranded the cursor until
+            // the user re-performed a parade-open hand. A hand that has never
+            /// armed still shows the full ceremony; a half-curl (~0.19) stays
+            /// out of even the relaxed line.
+            var relaxed = config.poseThresholds
+            relaxed.openHandMinOpenness = 0.20
+            let gate = hasArmedBefore
+                ? HandFeatures(hand: hand, thresholds: relaxed,
+                               minJointConfidence: max(config.minJointConfidence, Self.engageConfidenceFloor))
+                : armFeatures(of: hand)
+            guard gate?.isOpenHand() == true else {
                 armFrames = 0
                 return
             }
