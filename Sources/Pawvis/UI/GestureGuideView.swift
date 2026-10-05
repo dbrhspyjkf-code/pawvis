@@ -75,7 +75,7 @@ struct GestureGuideView: View {
             Row(symbol: "hand.raised.fill",
                 panel: "full-move",
                 title: "Move",
-                detail: "Hold your hand open, fingers up, and move it — the claw cursor rides your \(store.settings.gestures.pointerSource.inlineName). The ring around the claw tightens as the click gesture forms."),
+                detail: L("Hold your hand open, fingers up, and move it — the claw cursor rides your %@. The ring around the claw tightens as the click gesture forms.", store.settings.gestures.pointerSource.inlineName)),
             Row(symbol: "hand.point.up.left.fill",
                 panel: "full-click",
                 title: "Click",
@@ -90,7 +90,7 @@ struct GestureGuideView: View {
             rows.append(Row(
                 symbol: "timer",
                 title: "Dwell click",
-                detail: "Hold the cursor still on a target and the ring tightens; after \(String(format: "%.1f", store.settings.gestures.dwellSeconds)) s of stillness a left click fires on its own. Move the cursor away, then settle again, for the next one. Holding a button, scrolling, or a parked cursor never dwells."))
+                detail: L("Hold the cursor still on a target and the ring tightens; after %.1f s of stillness a left click fires on its own. Move the cursor away, then settle again, for the next one. Holding a button, scrolling, or a parked cursor never dwells.", store.settings.gestures.dwellSeconds)))
         }
 
         if store.settings.gestures.rightClickEnabled {
@@ -100,7 +100,7 @@ struct GestureGuideView: View {
                 symbol: "hand.point.right.fill",
                 panel: "full-right-click-\(finger.rawValue)",
                 title: "Right-click",
-                detail: "Dip your \(fingerName) finger the same way — the claw turns blue while it's down. Hold it to right-drag."))
+                detail: L("Dip your %@ finger the same way — the claw turns blue while it's down. Hold it to right-drag.", fingerName)))
         }
 
         if store.settings.gestures.middleClickEnabled {
@@ -110,21 +110,29 @@ struct GestureGuideView: View {
                 symbol: "hand.point.up.braille.fill",
                 panel: "full-right-click-\(finger.rawValue)",
                 title: "Middle-click",
-                detail: "Dip your \(fingerName) finger the same way — the claw turns pink while it's down. Hold it to middle-drag."))
+                detail: L("Dip your %@ finger the same way — the claw turns pink while it's down. Hold it to middle-drag.", fingerName)))
         }
 
         if store.settings.gestures.scrollEnabled {
             let direction = store.settings.gestures.scrollInvert
-                ? "Move your hand up to scroll down and down to scroll up (you inverted the direction in Settings)."
-                : "Move your hand up to scroll up and down to scroll down."
+                ? L("Move your hand up to scroll down and down to scroll up (you inverted the direction in Settings).")
+                : L("Move your hand up to scroll up and down to scroll down.")
             let sideways = store.settings.gestures.scrollAxes == .both
-                ? " Sideways movement scrolls sideways."
+                ? L(" Sideways movement scrolls sideways.")
                 : ""
             rows.append(Row(
                 symbol: "arrow.up.arrow.down.circle.fill",
                 panel: "full-scroll",
                 title: "Scroll",
-                detail: "Fold your middle and ring fingers in — index and pinky stay up. \(direction)\(sideways) The cursor parks (with a light-blue ring) while the pose is held; relax your hand to let go."))
+                detail: L("Fold your middle and ring fingers in — index and pinky stay up. %@%@ The cursor parks (with a light-blue ring) while the pose is held; relax your hand to let go.", direction, sideways)))
+        }
+
+        if store.settings.gestures.zoomEnabled {
+            rows.append(Row(
+                symbol: "arrow.up.left.and.arrow.down.right.circle.fill",
+                panel: "full-zoom",
+                title: "Pinch zoom",
+                detail: "Show both hands open at once — fingers up, palms facing each other — and the claw parks (violet ring): you're holding a zoom. Move your hands apart to zoom in, together to zoom out, wherever the trackpad pinch works (Photos, Preview, maps, PDFs). Bring your hands all the way together and the view springs back to its original size. Keep the fingers together, not spread wide — spread fingers belong to the stop-tracking wave. Close either hand to let go."))
         }
 
         if store.settings.gestures.crissCrossDisableEnabled {
@@ -133,7 +141,7 @@ struct GestureGuideView: View {
                 symbol: "hand.raised.fingers.spread.fill",
                 panel: "full-stop-tracking",
                 title: "Stop tracking",
-                detail: "Hold up both hands open with fingers spread wide — a double high-five — and wave them across each other. Once they've traded sides \(crossings == 2 ? "twice (over and back)" : "\(crossings) times"), tracking switches off entirely. Turn it back on from the menu bar."))
+                detail: L("Hold up both hands open with fingers spread wide — a double high-five — and wave them across each other. Once they've traded sides %@, tracking switches off entirely. Turn it back on from the menu bar.", crossings == 2 ? L("twice (over and back)") : L("%d times", crossings))))
         }
         return rows
     }
@@ -194,13 +202,13 @@ struct GestureGuideView: View {
             TrainedGestureBadge(gesture: gesture, size: 48)
                 .frame(width: GestureArt.panelWidth)
             VStack(alignment: .leading, spacing: 2) {
-                Text(gesture.name).font(.headline)
-                Text("You taught Pawvis this one — \(gesture.handCount == 2 ? "both hands" : "one hand"), about \(String(format: "%.1f", max(gesture.duration, 0.3))) s. The badge replays the motion it learned.")
+                Text(LocalizedStringKey(gesture.name)).font(.headline)
+                Text(LocalizedStringKey(L("You taught Pawvis this one — %@, about %.1f s. The badge replays the motion it learned.", gesture.handCount == 2 ? L("both hands") : L("one hand"), max(gesture.duration, 0.3))))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 if let line = trainedBindingLine(gesture) {
-                    Text(line)
+                    Text(LocalizedStringKey(line))
                         .font(.callout.weight(.medium))
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
@@ -236,24 +244,24 @@ struct GestureGuideView: View {
                 guard let binding = custom.binding(for: gesture) else { return nil }
                 let perApp = binding.overrides.filter { $0.action != nil }.count
                 if let summary = binding.action?.summary {
-                    let suffix = perApp > 0 ? " (+\(perApp) per-app)" : ""
-                    return "\(label) → \(summary)\(suffix)"
+                    let suffix = perApp > 0 ? L(" (+%d per-app)", perApp) : ""
+                    return L("%@ → %@%@", label, summary, suffix)
                 }
                 guard perApp > 0 else { return nil }
-                return "\(label) → per-app actions in \(perApp) app\(perApp == 1 ? "" : "s")"
+                return L("%@ → per-app actions in %d app%@", label, perApp, perApp == 1 ? "" : "s")
             }
         }
         return [
             Row(symbol: "hand.raised.fingers.spread.fill",
                 panel: "full-wiggle",
                 title: "Raised finger wiggle",
-                detail: CustomGesture.fingerWiggle.howTo + " Both hands at once is its own gesture.",
+                detail: L("%@ Both hands at once is its own gesture.", CustomGesture.fingerWiggle.howTo),
                 bindings: bound([("One hand", .fingerWiggle),
                                  ("Both hands", .twoHandFingerWiggle)])),
             Row(symbol: "hand.point.left.fill",
                 panel: "full-wiggle-pointed",
                 title: "Pointed finger wiggle",
-                detail: CustomGesture.pointedWiggle.howTo + " Both hands at once is its own gesture.",
+                detail: L("%@ Both hands at once is its own gesture.", CustomGesture.pointedWiggle.howTo),
                 bindings: bound([("One hand", .pointedWiggle),
                                  ("Both hands", .twoHandPointedWiggle)])),
             Row(symbol: "hand.thumbsup.fill",
@@ -283,19 +291,19 @@ struct GestureGuideView: View {
         return [
             Row(symbol: "mic.fill",
                 title: "Start voice control from the menu bar",
-                detail: "Click the claw in the menu bar and press Start next to Voice control. Address it by name: “\(wake) go to github.com”, “\(wake) open Safari”, “\(wake) switch to Notes”, “\(wake) press command T”, “\(wake) scroll down”."),
+                detail: L("Click the claw in the menu bar and press Start next to Voice control. Address it by name: “%@ go to github.com”, “%@ open Safari”, “%@ switch to Notes”, “%@ press command T”, “%@ scroll down”.", wake, wake, wake, wake, wake)),
             Row(symbol: "keyboard.fill",
                 title: "Type by voice",
-                detail: "Say \u{201c}\(wake) type good morning\u{201d} and exactly that text is typed into the focused app. Every command starts with the wake word \u{2014} speech without it is ignored."),
+                detail: L("Say “%@ type good morning” and exactly that text is typed into the focused app. Every command starts with the wake word — speech without it is ignored.", wake)),
             Row(symbol: "sparkles",
                 title: "Visual commands",
-                detail: "Anything else — “\(wake) click sign in” — is resolved against the screen near your pointer with on-device Apple Intelligence."),
+                detail: L("Anything else — “%@ click sign in” — is resolved against the screen near your pointer with on-device Apple Intelligence.", wake)),
         ]
     }
 
     private func section(_ title: String, rows: [Row]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(.title3.bold())
+            Text(LocalizedStringKey(title)).font(.title3.bold())
             ForEach(rows, id: \.title) { row in
                 rowView(row)
             }
@@ -306,13 +314,13 @@ struct GestureGuideView: View {
         HStack(alignment: .top, spacing: 14) {
             art(for: row)
             VStack(alignment: .leading, spacing: 2) {
-                Text(row.title).font(.headline)
-                Text(row.detail)
+                Text(LocalizedStringKey(row.title)).font(.headline)
+                Text(LocalizedStringKey(row.detail))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(row.bindings, id: \.self) { line in
-                    Text(line)
+                    Text(LocalizedStringKey(line))
                         .font(.callout.weight(.medium))
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)

@@ -85,7 +85,7 @@ final class PawvisController: ObservableObject {
         actionRunner.toggleVoiceControl = { [weak self] in self?.voice.toggle() }
         actionRunner.onFollowUp = { [weak self] outcome in
             guard let self else { return }
-            self.gestureNotice = (text: "🐾 \(outcome)",
+            self.gestureNotice = (text: L("🐾 %@", outcome),
                                   until: CACurrentMediaTime() + Self.gestureNoticeSeconds)
         }
 
@@ -206,7 +206,7 @@ final class PawvisController: ObservableObject {
                 // released as a side effect of entering the failure state;
                 // that guarantee now lives with the swap itself.
                 self.gestureNotice = (
-                    text: "🐾 \(gone) disconnected — using \(now)",
+                    text: L("🐾 %@ disconnected — using %@", gone, now),
                     until: CACurrentMediaTime() + Self.gestureNoticeSeconds)
             }
         }
@@ -462,7 +462,7 @@ final class PawvisController: ObservableObject {
     private func pauseForScreenLock() {
         guard trackingActive, !pausedForLock, !cameraBorrowed else { return }
         pausedForLock = true
-        pauseReason = "Paused on the lock screen"
+        pauseReason = L("Paused on the lock screen")
         mouse.apply(engine.forceRelease(at: CACurrentMediaTime()))
         mouse.releaseAllButtons()
         engine.reset() // stale press/arm state must not survive into resume
@@ -792,7 +792,7 @@ final class PawvisController: ObservableObject {
         failureFrameMark = nil
         engine.reset()
         overlay.endFailure()
-        gestureNotice = (text: "🐾 Camera is back",
+        gestureNotice = (text: L("🐾 Camera is back"),
                          until: CACurrentMediaTime() + Self.gestureNoticeSeconds)
         Log.app.info("Camera recovered; tracking resumed")
     }
@@ -873,8 +873,8 @@ final class PawvisController: ObservableObject {
         // frame already cleared the dwell, so its notice stands.)
         if let holding = engine.customHoldProgress {
             gestureNotice = (
-                text: String(format: "🐾 %@ · hold… %.1f s",
-                             holding.gesture.displayName, holding.remaining),
+                text: L("🐾 %@ · hold… %.1f s",
+                        holding.gesture.displayName, holding.remaining),
                 until: time + 0.4)
         }
         // Trained gestures with a hold-to-confirm get the same countdown:
@@ -883,7 +883,7 @@ final class PawvisController: ObservableObject {
         if let holding = engine.trainedHoldProgress,
            let gesture = settingsStore.settings.trainedGestures.gesture(withID: holding.id) {
             gestureNotice = (
-                text: String(format: "🐾 %@ · hold… %.1f s", gesture.name, holding.remaining),
+                text: L("🐾 %@ · hold… %.1f s", gesture.name, holding.remaining),
                 until: time + 0.4)
         }
 
@@ -897,15 +897,22 @@ final class PawvisController: ObservableObject {
             return
         }
 
-        mouse.apply(events)
+        // A desktop switch rides Mission Control's keyboard focus; the
+        // firing hand is still in front of the camera and its cursor
+        // moves would land in the open MC and steal the arrow selection
+        // (measured: MC flashes, nothing switches). Silence the mouse
+        // for the flight.
+        if !actionRunner.spaceSwitchInFlight {
+            mouse.apply(events)
+        }
 
-        // While a button is held or a scroll is active, the idle throttle
-        // must never engage. Hands are obviously in view then — the no-hands
-        // clock isn't even running — but the guard is explicit rather than
-        // inferred: dropping frames mid-press is the one failure this
-        // feature must not be able to cause.
+        // While a button is held, a scroll or a zoom is active, the idle
+        // throttle must never engage. Hands are obviously in view then —
+        // the no-hands clock isn't even running — but the guard is explicit
+        // rather than inferred: dropping frames mid-press is the one failure
+        // this feature must not be able to cause.
         let interacting = overlayState.grabbed || overlayState.rightGrabbed
-            || overlayState.isScrolling
+            || overlayState.isScrolling || overlayState.isZooming
         throttle.setInteracting(interacting)
         // The attention gate must never close mid-press either: same fact,
         // same mirror, second consumer.
@@ -945,7 +952,7 @@ final class PawvisController: ObservableObject {
             for: gesture, frontmostBundleID: frontmostBundleID()) else { return }
         let feedback = actionRunner.perform(action)
         Log.app.info("Custom gesture \(gesture.rawValue): \(feedback)")
-        gestureNotice = (text: "🐾 \(feedback)", until: time + Self.gestureNoticeSeconds)
+        gestureNotice = (text: L("🐾 %@", feedback), until: time + Self.gestureNoticeSeconds)
     }
 
     private func performTrainedGesture(_ id: UUID, at time: TimeInterval) {
@@ -955,7 +962,7 @@ final class PawvisController: ObservableObject {
         else { return }
         let feedback = actionRunner.perform(action)
         Log.app.info("Trained gesture \(gesture.name, privacy: .public): \(feedback)")
-        gestureNotice = (text: "🐾 \(gesture.name): \(feedback)",
+        gestureNotice = (text: L("🐾 %@: %@", gesture.name, feedback),
                          until: time + Self.gestureNoticeSeconds)
     }
 
@@ -1001,8 +1008,10 @@ final class PawvisController: ObservableObject {
     private func apply(settings: PawvisSettings) {
         engine.config = settings.gestures
         // The engine emits normalized scroll deltas; the speed dial applies
-        // where the wheel pixels are composed.
+        // where the wheel pixels are composed. The zoom's spread deltas get
+        // the same handoff through the same dial.
         mouse.scrollGain = settings.gestures.scrollGain
+        mouse.zoomGain = settings.gestures.zoomGain
         engine.customConfig = settings.customGestures.detectorConfig()
         // Trained gestures share the custom library's master switch.
         engine.trainedConfig = settings.trainedGestures.detectorConfig(

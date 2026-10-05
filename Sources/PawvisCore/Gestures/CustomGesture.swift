@@ -48,9 +48,9 @@ public enum CustomGesture: String, Codable, CaseIterable, Sendable {
 
         public var displayName: String {
             switch self {
-            case .wiggle: return "Finger wiggle"
-            case .holdPose: return "Held poses"
-            case .grabFling: return "Grab & fling"
+            case .wiggle: return String(localized: "Finger wiggle")
+            case .holdPose: return String(localized: "Held poses")
+            case .grabFling: return String(localized: "Grab & fling")
             }
         }
 
@@ -58,11 +58,11 @@ public enum CustomGesture: String, Codable, CaseIterable, Sendable {
         public var blurb: String {
             switch self {
             case .wiggle:
-                return "Fingers wiggling while the hand stays put — hand raised with the palm to the camera, or pointed flat at the screen. Two orientations, two separate gestures."
+                return String(localized: "Fingers wiggling while the hand stays put — hand raised with the palm to the camera, or pointed flat at the screen. Two orientations, two separate gestures.")
             case .holdPose:
-                return "An unambiguous shape, held for a beat."
+                return String(localized: "An unambiguous shape, held for a beat.")
             case .grabFling:
-                return "Close your open hand into a grab, then fling it toward an edge or corner. The cursor parks while you hold the grab."
+                return String(localized: "Close your open hand into a grab, then fling it toward an edge or corner. The cursor parks while you hold the grab.")
             }
         }
     }
@@ -81,23 +81,23 @@ public enum CustomGesture: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .fingerWiggle: return "Raised finger wiggle"
-        case .twoHandFingerWiggle: return "Two-hand raised wiggle"
-        case .pointedWiggle: return "Pointed finger wiggle"
-        case .twoHandPointedWiggle: return "Two-hand pointed wiggle"
-        case .thumbsUp: return "Thumbs up"
-        case .thumbsDown: return "Thumbs down"
-        case .thumbsLeft: return "Thumb to the left"
-        case .thumbsRight: return "Thumb to the right"
-        case .shaka: return "Shaka"
-        case .grabFlingLeft: return "Grab & fling left"
-        case .grabFlingRight: return "Grab & fling right"
-        case .grabFlingUp: return "Grab & fling up"
-        case .grabFlingDown: return "Grab & fling down"
-        case .grabFlingUpLeft: return "Grab & fling up-left"
-        case .grabFlingUpRight: return "Grab & fling up-right"
-        case .grabFlingDownLeft: return "Grab & fling down-left"
-        case .grabFlingDownRight: return "Grab & fling down-right"
+        case .fingerWiggle: return String(localized: "Raised finger wiggle")
+        case .twoHandFingerWiggle: return String(localized: "Two-hand raised wiggle")
+        case .pointedWiggle: return String(localized: "Pointed finger wiggle")
+        case .twoHandPointedWiggle: return String(localized: "Two-hand pointed wiggle")
+        case .thumbsUp: return String(localized: "Thumbs up")
+        case .thumbsDown: return String(localized: "Thumbs down")
+        case .thumbsLeft: return String(localized: "Thumb to the left")
+        case .thumbsRight: return String(localized: "Thumb to the right")
+        case .shaka: return String(localized: "Shaka")
+        case .grabFlingLeft: return String(localized: "Grab & fling left")
+        case .grabFlingRight: return String(localized: "Grab & fling right")
+        case .grabFlingUp: return String(localized: "Grab & fling up")
+        case .grabFlingDown: return String(localized: "Grab & fling down")
+        case .grabFlingUpLeft: return String(localized: "Grab & fling up-left")
+        case .grabFlingUpRight: return String(localized: "Grab & fling up-right")
+        case .grabFlingDownLeft: return String(localized: "Grab & fling down-left")
+        case .grabFlingDownRight: return String(localized: "Grab & fling down-right")
         }
     }
 
@@ -105,39 +105,39 @@ public enum CustomGesture: String, Codable, CaseIterable, Sendable {
     public var howTo: String {
         switch self {
         case .fingerWiggle:
-            return "Hold one open hand up, palm to the camera, fingers spread, and wiggle your fingers while the hand stays put."
+            return String(localized: "Hold one open hand up, palm to the camera, fingers spread, and wiggle your fingers while the hand stays put.")
         case .twoHandFingerWiggle:
-            return "Hold both open hands up, palms to the camera, and wiggle all your fingers at once."
+            return String(localized: "Hold both open hands up, palms to the camera, and wiggle all your fingers at once.")
         case .pointedWiggle:
-            return "Point one hand at the screen, palm down, and wiggle your fingers up and down, drumming on invisible keys, while the hand stays put."
+            return String(localized: "Point one hand at the screen, palm down, and wiggle your fingers up and down, drumming on invisible keys, while the hand stays put.")
         case .twoHandPointedWiggle:
-            return "Point both hands at the screen, palms down, and wiggle all your fingers at once."
+            return String(localized: "Point both hands at the screen, palms down, and wiggle all your fingers at once.")
         case .thumbsUp:
-            return "Make a fist with your thumb pointing up and hold it for a beat."
+            return String(localized: "Make a fist with your thumb pointing up and hold it for a beat.")
         case .thumbsDown:
-            return "Make a fist with your thumb pointing down and hold it for a beat."
+            return String(localized: "Make a fist with your thumb pointing down and hold it for a beat.")
         case .thumbsLeft:
-            return "Make a fist and tilt it so your thumb points straight left; hold it for a beat."
+            return String(localized: "Make a fist and tilt it so your thumb points straight left; hold it for a beat.")
         case .thumbsRight:
-            return "Make a fist and tilt it so your thumb points straight right; hold it for a beat."
+            return String(localized: "Make a fist and tilt it so your thumb points straight right; hold it for a beat.")
         case .shaka:
-            return "Thumb and pinky out, middle three fingers folded — hold the shaka for a beat."
+            return String(localized: "Thumb and pinky out, middle three fingers folded — hold the shaka for a beat.")
         case .grabFlingLeft:
-            return "Bunch all your fingertips onto your thumb, then fling the bunch left."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling the bunch left.")
         case .grabFlingRight:
-            return "Bunch all your fingertips onto your thumb, then fling the bunch right."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling the bunch right.")
         case .grabFlingUp:
-            return "Bunch all your fingertips onto your thumb, then fling the bunch up."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling the bunch up.")
         case .grabFlingDown:
-            return "Bunch all your fingertips onto your thumb, then fling the bunch down."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling the bunch down.")
         case .grabFlingUpLeft:
-            return "Bunch all your fingertips onto your thumb, then fling toward the top-left."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling toward the top-left.")
         case .grabFlingUpRight:
-            return "Bunch all your fingertips onto your thumb, then fling toward the top-right."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling toward the top-right.")
         case .grabFlingDownLeft:
-            return "Bunch all your fingertips onto your thumb, then fling toward the bottom-left."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling toward the bottom-left.")
         case .grabFlingDownRight:
-            return "Bunch all your fingertips onto your thumb, then fling toward the bottom-right."
+            return String(localized: "Bunch all your fingertips onto your thumb, then fling toward the bottom-right.")
         }
     }
 

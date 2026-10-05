@@ -593,7 +593,7 @@ final class PracticeModel: ObservableObject {
             if board.pointer == nil { return PracticeHint(text: "Bring the claw into the board.") }
             return PracticeHint(text: lesson == .click
                 ? "Steer onto the button, then dip your index finger."
-                : "Steer onto the button, then dip your \(rightClickFingerName).")
+                : L("Steer onto the button, then dip your %@.", rightClickFingerName))
 
         case .drag:
             if board.carrying {
@@ -622,7 +622,7 @@ final class PracticeModel: ObservableObject {
     /// The finger the user actually chose, in the word they'd use for it.
     var rightClickFingerName: String {
         let finger = controller?.settingsStore.settings.gestures.rightClickFinger ?? .little
-        return finger == .little ? "pinky" : finger.rawValue
+        return finger == .little ? String(localized: "pinky") : String(localized: String.LocalizationValue(finger.rawValue))
     }
 
     var rightClickFinger: Finger {

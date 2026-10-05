@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Detects the bindable one-shot gestures (`CustomGesture`) in the same
 /// tracked, screen-space hand stream the engine's built-in gestures run on.
@@ -234,6 +235,7 @@ public final class CustomGestureDetector {
     /// none). Safe — and cheap — to call with no hands: pending decisions
     /// still time out and stale slots still expire.
     public func process(hands: [HandInput], context: Context) -> [CustomGesture] {
+        lastContextTime = context.time
         guard !config.enabled.isEmpty else {
             if !slots.isEmpty || !grabbingSlots.isEmpty { reset() }
             return []
@@ -496,13 +498,38 @@ public final class CustomGestureDetector {
         (.thumbsUp, .up), (.thumbsDown, .down), (.thumbsLeft, .left), (.thumbsRight, .right),
     ]
 
+    private static let thumbTrace = Logger(subsystem: "com.pawvis.Pawvis", category: "thumbTrace")
+    private var lastThumbTrace = 0.0
+    private var lastContextTime: TimeInterval?
+
     private func strictHoldGesture(_ features: HandFeatures?) -> CustomGesture? {
+        if let time = lastContextTime, time - lastThumbTrace > 0.25 {
+            lastThumbTrace = time
+            var parts: [String] = []
+            if let f = features {
+                parts.append("closed=\(f.isClosedHand()) fist=\(f.isFist())")
+                parts.append("collapse=\(f.collapsedFingertips())")
+                for (_, d) in Self.thumbSignals {
+                    parts.append("\(d.rawValue):\(f.isThumbSignal(d)) held:\(f.isThumbSignalHeld(d))")
+                }
+                parts.append("pointed=\(f.wiggleOrientation()?.rawValue ?? "nil")")
+            } else {
+                parts.append("features=nil")
+            }
+            Self.thumbTrace.debug("\(parts.joined(separator: " "), privacy: .public)")
+        }
         guard let features else { return nil }
         // A hand pointed at the screen collapses its tips onto the palm
         // (the closed-hand read matches) while the thumb naturally juts
         // sideways — a phantom thumb signal. Pointed hands belong to the
-        // pointed wiggle; the hold family stands down.
-        guard features.wiggleOrientation() != .pointed else { return nil }
+        // pointed wiggle; the hold family stands down. A GENUINE fist is
+        // exempt: its tips sit below the knuckle line in projection too
+        // (measured on a real camera — the pose's own frames read
+        // "pointed" and the hold never engaged), so the angle-band fist
+        // or unreadable (collapsed) tips override the pointed veto.
+        guard features.wiggleOrientation() != .pointed
+            || features.isFist() || features.collapsedFingertips() >= 3
+        else { return nil }
         for (gesture, direction) in Self.thumbSignals
         where config.enabled.contains(gesture) && features.isThumbSignal(direction) {
             return gesture

@@ -498,6 +498,77 @@ migrations needed).
   so that finger's dip only engages while the pose's *other* folding finger
   is still extended. A genuine dip keeps the rest of the hand up.
 
+**The spread zoom** (two hands open, on by default like the scroll): both
+hands genuinely open with palms facing each other engage a zoom, and the
+distance between the palm centers drives a synthesized trackpad magnify
+gesture: hands apart zooms in, together zooms out. Its constraints, each
+deliberate — the first two are a measured lesson from this very feature's
+first design:
+
+- **Open palms, never pinches.** The first design WAS a two-hand pinch
+  (thumb + index tips together), and the camera killed it on a real
+  machine: a pinched hand is the one pose Vision handles worst — the
+  overlapping tips read as low-confidence guesses (measured: pinch ratio
+  0.26 with thumb/index joint confidence 0.28 and 0.35, under every engage
+  floor), and most frames the contracted hand is not detected at all
+  (45 s of real pinches: single-digit frames with any hand, against 22%
+  two-hand frames for open palms in the same session). Same lesson that
+  retired the pinch-click mode, rediscovered: the hand stays open and
+  visible, so tracking never guesses at overlapping fingers. Diagnose pose
+  problems with `--zoom-eval camera` before blaming thresholds.
+- **The pose gate is `isOpenHand` + NOT splayed, on both hands.** Merely
+  "not a fist" was the second design's bug: an open control hand plus a
+  resting half-curled bystander engaged a zoom on their separation alone
+  (caught by the primary-handoff regression tests). Both hands must be
+  genuinely open — the same read the control trigger arms on — and the
+  splay exclusion disambiguates from the criss-cross wave, which demands
+  fingers spread wide: no pose can court both modes, so they can never
+  steal each other's engage. The separation floor (`0.12` screen-normalized
+  between palms) keeps two hands resting close together out.
+- **No forming-block on clicks.** Open palms read as no dip at all, so the
+  pre-debounce pose does NOT block button engage (the pinch design needed
+  that block, and it would have vetoed genuine clicks whenever the second
+  hand rested open in frame). Only an *active* zoom blocks, like an active
+  scroll. A press then releases the zoom the moment the button engages.
+- **The zoom is phaseful, the scroll is not.** Wheel events are stateless
+  deltas, but a magnify stream apps expect `began`/`changed`/`ended`
+  phases: the engine emits one `.began` at engage and one `.ended` at every
+  release path (pose release, debounce, tracking-loss grace, `forceRelease`
+  — stop tracking, the lock screen and the attention pause all ride that
+  one — and the settings-off flip). An app left mid-gesture keeps zooming
+  on the next `.began` otherwise.
+- **The spread is anchor-based with the scroll's deadband**, measured
+  between the two palm centers in screen space, unclamped so hands spread
+  past the interaction box keep zooming. The auto-reach drift is frozen
+  mid-zoom for the same reason it is frozen mid-scroll: the spread runs
+  through the box's mapping, and a box drifting under a held zoom remaps a
+  motionless hand into phantom zoom.
+- **Closing all the way is snap-home, not more zoom.** The caliper
+  metaphor users bring: hands together = back to the original size. Below
+  `zoomResetSpread` (0.09, deliberately under the engage separation) and
+  debounced, a payback sequence emits everything this zoom's ledger owes
+  plus `zoomResetMargin` (2.5) of extra negative travel — over-shrinking is
+  clamped by every pinch-aware app at its fit floor, which IS the original
+  size, so the margin is safe by construction. The `homed` latch keeps a
+  held-closed pose from re-triggering the sequence when it finishes, and
+  opening back past the band re-arms ordinary incremental zooming with the
+  ledger wiped.
+- **Synthesis is undocumented, measured, and borrowed.** There is no public
+  zoom event constructor: the app posts the CalfTrail Touch field layout
+  (type 29 gesture, field 110 = 8 = `kIOHIDEventTypeZoom`, field 113 =
+  magnification, field 132 = phase) that Mac Mouse Fix has shipped for
+  years, through the same paced posting queue as everything else. On
+  macOS 27 the WindowServer still accepts this layout even though a real
+  trackpad pinch now arrives as a type-30 carrier with a DockSwipe-family
+  IOHIDEvent payload (measured with `--zoom-eval listen`); if a future
+  macOS stops accepting it, that harness plus `--zoom-eval <total>` are
+  the reproduction path. Verify against real apps (Photos, Preview), not
+  against headers — Apple documents none of this.
+- **The grab family stands down mid-zoom.** Two open palms traveling apart
+  is a fling-shaped motion to the grab detector, so the zoom feeds
+  `pressOrScrollActive` to the custom detector: a spread in flight must
+  not end its life as a fling.
+
 **The criss-cross tracking-off wave** (optional, on by default): both hands
 up, open and splayed, then traded sides `crissCrossDisableCrossings` times
 (default 2 — over and back). Its constraints, each deliberate:
@@ -657,6 +728,23 @@ How a bound gesture's action actually reaches macOS
 with `--action-eval`, not by reading Apple's documentation, which describes
 none of this:
 
+- **macOS 27: the Dock-swipe door is closed; ⌃+fn+arrows is the route
+  that works.** Both swipe layouts — the plain-field one this class
+  shipped and a field-for-field transcription of a real captured swipe —
+  post cleanly and move nothing: the gesture pipeline drops what it
+  cannot attribute to real hardware. A detour through Mission Control
+  was tried next (its fn+⌃↑ opens fine, and from a FULL-SCREEN space the
+  arrow keys even switch), but the desktop-open MC ignores every
+  synthetic key AND every synthetic click on the space strip (real
+  keyboards are ignored there too — it's the system's view, not a
+  filter), so that route only worked from full-screen starts. The answer
+  was re-testing ⌃←/⌃→ themselves: on this macOS they answer synthetic
+  input again — carrying the fn flag, the same wrinkle the fn-block
+  hotkeys taught. Measured both directions, immediate, no MC flash; one
+  keypress walks one ring entry (full-screen spaces included), so
+  swipeSteps maps to keypresses directly. If a future macOS goes quiet
+  again, the leftover-MC guard and the MC experiments above are the
+  trailhead.
 - **Synthetic key chords need the fn flag and real modifier key events.**
   The system's own hotkeys are registered with the secondary-fn bit for
   fn-block keys (show desktop is literally fn+F11's mask, Mission Control

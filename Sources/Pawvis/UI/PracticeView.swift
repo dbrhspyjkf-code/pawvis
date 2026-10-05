@@ -126,7 +126,7 @@ struct PracticeView: View {
             PracticeClaw(size: 24).foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Practice").font(.title2.bold())
-                Text(headerSubtitle)
+                Text(LocalizedStringKey(headerSubtitle))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -185,9 +185,9 @@ struct PracticeView: View {
     private var introPage: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Learn the moves").font(.title3.bold())
-            Text(model.course.isEmpty
-                ? "The round teaches the mouse motions — pointing, clicking, dragging, scrolling — against live targets, with the tracker's view of your hand alongside. It needs cursor control switched on."
-                : "Pawvis turns your hand into the mouse. This two-minute round walks you through each motion against live targets, and shows what the tracker sees the whole time. Skip any lesson, or the whole round, whenever you like.")
+            Text(LocalizedStringKey(model.course.isEmpty
+                ? L("The round teaches the mouse motions — pointing, clicking, dragging, scrolling — against live targets, with the tracker's view of your hand alongside. It needs cursor control switched on.")
+                : L("Pawvis turns your hand into the mouse. This two-minute round walks you through each motion against live targets, and shows what the tracker sees the whole time. Skip any lesson, or the whole round, whenever you like.")))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -212,7 +212,7 @@ struct PracticeView: View {
                     Text("\(index + 1)")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.tint)
-                    Text(lesson.title).font(.caption.weight(.medium))
+                    Text(LocalizedStringKey(lesson.title)).font(.caption.weight(.medium))
                 }
                 .padding(.horizontal, 9)
                 .padding(.vertical, 4)
@@ -322,8 +322,8 @@ struct PracticeView: View {
         VStack(alignment: .leading, spacing: 9) {
             PracticeDemoView(lesson: lesson, rightClickFinger: model.rightClickFinger)
                 .frame(width: 236, height: 140)
-            Text(lesson.title).font(.headline)
-            Text(instruction(for: lesson))
+            Text(LocalizedStringKey(lesson.title)).font(.headline)
+            Text(LocalizedStringKey(instruction(for: lesson)))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -345,7 +345,7 @@ struct PracticeView: View {
         case .scroll:
             return "Fold your middle and ring fingers in, index and pinky up, then move your whole hand to scroll. Find the treat at the bottom of the strip, then scroll back to the top."
         case .rightClick:
-            return "Dip your \(model.rightClickFingerName) finger the same way as a click (it's the finger you chose in Settings → Mouse). The claw turns blue while it's down."
+            return L("Dip your %@ finger the same way as a click (it's the finger you chose in Settings → Mouse). The claw turns blue while it's down.", model.rightClickFingerName)
         }
     }
 
@@ -374,7 +374,7 @@ struct PracticeView: View {
             value = board.scrollProgress
         }
         return VStack(alignment: .leading, spacing: 4) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.callout.weight(.medium))
                 .fixedSize(horizontal: false, vertical: true)
             ProgressView(value: min(max(value, 0), 1))
@@ -391,12 +391,12 @@ struct PracticeView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Circle().fill(statusColor).frame(width: 9, height: 9)
-                    Text(model.hand.statusLine)
+                    Text(LocalizedStringKey(model.hand.statusLine))
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(model.hint.text)
+                    Text(LocalizedStringKey(model.hint.text))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -439,8 +439,8 @@ struct PracticeView: View {
             // Skipping everything is a legitimate way through, and greeting
             // it with "you've got the moves" would be a small lie.
             Text(model.outcomes.values.contains(.completed)
-                ? "You've got the moves"
-                : "Whenever you're ready")
+                ? L("You've got the moves")
+                : L("Whenever you're ready"))
                 .font(.title3.bold())
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(model.course.enumerated()), id: \.offset) { _, lesson in
@@ -449,8 +449,8 @@ struct PracticeView: View {
                             ? "checkmark.circle.fill" : "minus.circle")
                             .foregroundStyle(model.outcomes[lesson] == .completed
                                 ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                        Text(lesson.title).font(.callout.weight(.medium))
-                        Text(model.outcomes[lesson] == .completed ? "done" : "skipped")
+                        Text(LocalizedStringKey(lesson.title)).font(.callout.weight(.medium))
+                        Text(model.outcomes[lesson] == .completed ? L("done") : L("skipped"))
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
@@ -505,7 +505,7 @@ struct PracticeView: View {
                 Image(systemName: icon)
                     .foregroundStyle(.tint)
                     .frame(width: 20)
-                Text(title).font(.headline)
+                Text(LocalizedStringKey(title)).font(.headline)
                 Spacer()
                 trailing()
             }

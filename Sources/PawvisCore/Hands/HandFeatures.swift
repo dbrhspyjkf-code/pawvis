@@ -17,10 +17,10 @@ public enum PointerSource: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .palmCenter: return "Palm (steady)"
-        case .thumbTip: return "Thumb tip"
-        case .indexTip: return "Index fingertip"
-        case .pinchMidpoint: return "Pinch midpoint (thumb and index)"
+        case .palmCenter: return String(localized: "Palm (steady)")
+        case .thumbTip: return String(localized: "Thumb tip")
+        case .indexTip: return String(localized: "Index fingertip")
+        case .pinchMidpoint: return String(localized: "Pinch midpoint (thumb and index)")
         }
     }
 
@@ -28,10 +28,10 @@ public enum PointerSource: String, Codable, CaseIterable, Sendable {
     /// and the settings captions stay honest whichever source is chosen.
     public var inlineName: String {
         switch self {
-        case .palmCenter: return "palm"
-        case .thumbTip: return "thumb tip"
-        case .indexTip: return "index fingertip"
-        case .pinchMidpoint: return "pinch midpoint"
+        case .palmCenter: return String(localized: "palm")
+        case .thumbTip: return String(localized: "thumb tip")
+        case .indexTip: return String(localized: "index fingertip")
+        case .pinchMidpoint: return String(localized: "pinch midpoint")
         }
     }
 }
@@ -306,8 +306,20 @@ public struct HandFeatures {
     /// half-curl. The thumb is not part of `openness()`, so a thumb
     /// standing clear doesn't lift it.
     public func isClosedHand() -> Bool {
+        // 0.25, not the historical 0.15: a fist held at an angle reads
+        // 0.0-0.2 across its rotation, and the tightened band catches the
+        // in-between frames that used to break the hold mid-pose.
         guard let open = openness() else { return false }
-        return open <= 0.15
+        return open <= 0.25 || collapsedFingertips() >= 3
+    }
+
+    /// How many of the four non-thumb fingertips are unreadable (below the
+    /// confidence floor or missing). A clenched fist overlaps its tips,
+    /// which is exactly when Vision drops them — unreadable tips are a
+    /// fist signal, not noise (measured on a real camera: the pose's
+    /// best frames carry openness "–" precisely when the fist is tight).
+    public func collapsedFingertips() -> Int {
+        Finger.allCases.filter { point($0.tip) == nil }.count
     }
 
     /// Thumb + little finger extended, middle three folded ("shaka" / hang loose).
@@ -406,11 +418,15 @@ public struct HandFeatures {
     public func thumbDirection() -> ThumbDirection? {
         guard let palm = palmCenter(), let thumb = point(.thumbTip) else { return nil }
         let v = (thumb - palm) / scale
-        guard v.length >= 0.85 else { return nil }
-        if abs(v.y) >= 1.5 * abs(v.x) {
+        // 0.75 clears and 1.25× dominance (was 0.85 / 1.5×): a real thumb
+        // pointed sideways still carries cross-axis drift from the wrist,
+        // and the old cone left it in "none" (measured: dir=none frames
+        // carried perfectly usable sideways thumbs).
+        guard v.length >= 0.75 else { return nil }
+        if abs(v.y) >= 1.25 * abs(v.x) {
             return v.y < 0 ? .up : .down
         }
-        if abs(v.x) >= 1.5 * abs(v.y) {
+        if abs(v.x) >= 1.25 * abs(v.y) {
             return v.x < 0 ? .left : .right
         }
         return nil
@@ -437,12 +453,12 @@ public struct HandFeatures {
         guard Finger.allCases.allSatisfy({ isExtended($0) != true }) || isClosedHand(),
               let palm = palmCenter(), let thumb = point(.thumbTip) else { return false }
         let v = (thumb - palm) / scale
-        guard v.length >= 0.70 else { return false }
+        guard v.length >= 0.65 else { return false }
         switch direction {
-        case .up: return v.y < 0 && abs(v.y) >= 1.1 * abs(v.x)
-        case .down: return v.y > 0 && abs(v.y) >= 1.1 * abs(v.x)
-        case .left: return v.x < 0 && abs(v.x) >= 1.1 * abs(v.y)
-        case .right: return v.x > 0 && abs(v.x) >= 1.1 * abs(v.y)
+        case .up: return v.y < 0 && abs(v.y) >= 1.0 * abs(v.x)
+        case .down: return v.y > 0 && abs(v.y) >= 1.0 * abs(v.x)
+        case .left: return v.x < 0 && abs(v.x) >= 1.0 * abs(v.y)
+        case .right: return v.x > 0 && abs(v.x) >= 1.0 * abs(v.y)
         }
     }
 

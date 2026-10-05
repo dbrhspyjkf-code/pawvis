@@ -73,14 +73,14 @@ struct ThereminView: View {
             .foregroundStyle(.tint)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Theremin").font(.title.bold())
-                Text(subtitle)
+                Text(LocalizedStringKey(subtitle))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
             HStack(spacing: 10) {
-                Text(session.isOn ? "On" : "Off")
+                Text(session.isOn ? L("On") : L("Off"))
                     .font(.callout.weight(.medium))
                     .foregroundStyle(session.isOn ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                 Toggle("", isOn: Binding(
@@ -234,7 +234,7 @@ struct ThereminView: View {
         case .failed(let message):
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.yellow)
-                Text(message)
+                Text(LocalizedStringKey(message))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -388,7 +388,7 @@ struct ThereminView: View {
 
     private func card(title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.headline)
+            Text(LocalizedStringKey(title)).font(.headline)
             content()
         }
         .padding(12)
@@ -406,7 +406,7 @@ struct ThereminMenuStatus: View {
     @ObservedObject var live: ThereminLiveState
 
     var body: some View {
-        Text(text)
+        Text(LocalizedStringKey(text))
             .font(.callout)
             .lineLimit(2)
     }

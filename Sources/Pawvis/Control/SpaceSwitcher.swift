@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import os
 import Foundation
 import PawvisCore
 
@@ -66,7 +67,14 @@ final class SpaceSwitcher {
         return SkyLight(connection: main(), copySpaces: copy)
     }()
 
-    private var busy = false
+    /// True while a switch sequence is mid-flight (opened through the
+    /// Mission Control route). The controller silences synthetic mouse
+    /// output for the duration: the hand that fired the gesture is still
+    /// in front of the camera, and its cursor moves land in the open
+    /// Mission Control, stealing focus from the arrow-key selection.
+    private(set) var busy = false
+
+    nonisolated(unsafe) private static let trace = Logger(subsystem: "com.pawvis.Pawvis", category: "spaceTrace")
 
     /// One space in a display's ring: its window-server id and whether it
     /// is a user desktop (`type == 0`) rather than a full-screen app's
@@ -98,22 +106,18 @@ final class SpaceSwitcher {
         return displays.first(where: { $0.identifier == pointerUUID })
     }
 
-    /// The neighboring *desktop* in the given direction, skipping the
-    /// full-screen app spaces that share the ring: the action is named
-    /// "desktop", and landing on someone's full-screen window reads as
-    /// window shuffling, not desktop switching. Works from a full-screen
-    /// space too (you flung mid-movie): the scan just continues to the
-    /// nearest desktop on that side. nil when there is none.
+    /// The neighboring *space* in the given direction — desktops AND
+    /// full-screen apps alike, the exact ring order Mission Control shows.
+    /// This used to skip full-screen spaces ("switching desktops" reading
+    /// as window shuffling), but the ⌃+fn arrow route walks one ring entry
+    /// per press and users expect exactly what the system trackpad swipe
+    /// does: the neighbor, whatever it is. nil at the ring's edge.
     nonisolated static func neighborDesktop(in spaces: [Space], active: UInt64,
                                             direction: Direction) -> UInt64? {
         guard let current = spaces.firstIndex(where: { $0.id == active }) else { return nil }
-        let step = direction == .left ? -1 : 1
-        var target = current + step
-        while target >= 0 && target < spaces.count {
-            if spaces[target].isDesktop { return spaces[target].id }
-            target += step
-        }
-        return nil
+        let target = current + (direction == .left ? -1 : 1)
+        guard target >= 0, target < spaces.count else { return nil }
+        return spaces[target].id
     }
 
     /// How many swipe steps reach `target`: the swipe walks every ring
@@ -133,13 +137,25 @@ final class SpaceSwitcher {
             .takeRetainedValue() as? [[String: Any]] else { return nil }
         let displays = dicts.compactMap { display -> DisplayRing? in
             guard let identifier = display["Display Identifier"] as? String,
-                  let current = ((display["Current Space"] as? [String: Any])?["id64"]
-                                 as? NSNumber)?.uint64Value,
                   let spaceDicts = display["Spaces"] as? [[String: Any]] else { return nil }
             let spaces = spaceDicts.compactMap { dict -> Space? in
                 guard let id = (dict["id64"] as? NSNumber)?.uint64Value else { return nil }
                 return Space(id: id, isDesktop: ((dict["type"] as? NSNumber)?.intValue ?? 0) == 0)
             }
+            // "Current Space" flattens nested tile/wall dicts, and their
+            // id64s leak into it (a full-screen space reads its TILE's id
+            // first — measured: current=33 while the ring holds 31).
+            // ManagedSpaceID is the space itself at every level, so prefer
+            // it; id64 stays as the single-space fallback.
+            let currentDict = display["Current Space"] as? [String: Any]
+            let managed = (currentDict?["ManagedSpaceID"] as? NSNumber)?.uint64Value
+            let raw = (currentDict?["id64"] as? NSNumber)?.uint64Value
+            // Whatever we read must be one of the ring's own ids; a tile id
+            // isn't, and walking from it is meaningless.
+            let candidates = [managed, raw].compactMap { $0 }
+            guard let current = candidates.first(where: { id in
+                spaces.contains { $0.id == id }
+            }) else { return nil }
             return DisplayRing(identifier: identifier, current: current, spaces: spaces)
         }
         return displays.isEmpty ? nil : displays
@@ -159,30 +175,89 @@ final class SpaceSwitcher {
     }
 
     /// The WindowServer's space-switch pipeline, entered where the trackpad
-    /// swipe enters it. The field numbers are the undocumented CGEventField
-    /// keys the gesture layer reads; the velocity is high enough that the
-    /// slide animation is skipped instead of replayed per step.
-    private func postDockSwipe(direction: Direction, steps: Int) {
-        guard let event = CGEvent(source: nil) else { return }
-        let sign: Double = direction == .right ? 1 : -1
-        event.setIntegerValueField(CGEventField(rawValue: 55)!, value: 30) // type: Dock control
-        event.setIntegerValueField(CGEventField(rawValue: 110)!, value: 23) // gesture: Dock swipe
-        event.setIntegerValueField(CGEventField(rawValue: 123)!, value: 1) // motion: horizontal
-        event.setDoubleValueField(CGEventField(rawValue: 124)!, value: sign) // progress
-        event.setDoubleValueField(CGEventField(rawValue: 129)!, value: sign * 9999) // velocity
-        for _ in 0..<steps {
-            event.setIntegerValueField(CGEventField(rawValue: 132)!, value: 1) // phase: began
-            event.post(tap: .cgSessionEventTap)
-            event.setIntegerValueField(CGEventField(rawValue: 132)!, value: 4) // phase: ended
-            event.post(tap: .cgSessionEventTap)
-        }
+    /// swipe enters it. macOS 27 stopped reading the plain CGEventFields the
+    /// previous layout set (measured here: the swipe posts, nothing moves),
+    /// so this posts the field-for-field layout Mac Mouse Fix's Tahoe branch
+    /// ships: a type-30 carrier with the DockSwipe payload (subtype 110=23,
+    /// phases in 132/134, the running origin offset in 124 and its
+    /// float32-bits encoding in 135, the direction selector in 119/139 and
+    /// 123/165, exit speed in 129/130 when ending), a bare type-29 companion
+    /// after each carrier, and the end pair re-posted once at +0.2 s — the
+    /// "stuck bug" guard, a WindowServer under load drops the first end.
+    /// The switch route that works here: ⌃ + fn + arrow. Plain ⌃←/⌃→ has
+    /// ignored synthetic input on every macOS this app shipped against
+    /// (measured then with every flag recipe), but on this macOS 27 the
+    /// arrows answer again — carrying the fn flag, the same wrinkle the
+    /// fn-block symbolic hotkeys taught (TextTyper). Measured both
+    /// directions: 53→31 with ⌃fn→, 31→53 with ⌃fn←, immediate, no
+    /// Mission Control flash. One keypress walks one ring entry
+    /// (full-screen spaces included — swipeSteps' exact unit), so steps
+    /// keypresses land on the target desktop.
+    private func postCtrlArrows(direction: Direction, steps: Int) async {
+        await Task.detached(priority: .userInitiated) {
+            let src = CGEventSource(stateID: .hidSystemState)
+            let arrow: CGKeyCode = direction == .left ? 123 : 124
+            for _ in 0..<steps {
+                for down in [true, false] {
+                    guard let e = CGEvent(keyboardEventSource: src,
+                                          virtualKey: arrow, keyDown: down) else { continue }
+                    e.flags = [.maskControl, .maskSecondaryFn]
+                    e.post(tap: .cghidEventTap)
+                    usleep(25_000)
+                }
+                usleep(350_000) // one ring entry per press, let each land
+            }
+        }.value
+    }
+
+    /// A dismissal for the failure path: if the commit never landed,
+    /// Mission Control may still be holding the screen — leave nothing
+    /// open behind a failed switch.
+    private func dismissMissionControl() async {
+        await Task.detached(priority: .userInitiated) {
+            let src = CGEventSource(stateID: .hidSystemState)
+            guard let d = CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: true),
+                  let u = CGEvent(keyboardEventSource: src, virtualKey: 53, keyDown: false)
+            else { return }
+            d.post(tap: .cghidEventTap)
+            usleep(20_000)
+            u.post(tap: .cghidEventTap)
+        }.value
     }
 
     /// Perform the switch; the returned line is the status-pill outcome.
+    /// Whether a Mission Control overlay is holding the screen right now:
+    /// a Dock-owned window covering (nearly) the whole main display. A
+    /// leftover overlay from a failed earlier attempt swallows the whole
+    /// sequence — fn+Ctrl+Up on an open MC does nothing useful, and every
+    /// key after it lands who-knows-where (measured: sequence dead until
+    /// an Escape cleared it, then the same sequence switched first try).
+    nonisolated private static func missionControlIsOpen() -> Bool {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] else { return false }
+        let screen = CGDisplayBounds(CGMainDisplayID())
+        for window in list {
+            guard (window[kCGWindowOwnerName as String] as? String) == "Dock",
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let w = bounds["Width"] as? Double, let h = bounds["Height"] as? Double,
+                  let x = bounds["X"] as? Double, let y = bounds["Y"] as? Double
+            else { continue }
+            let rect = CGRect(x: x, y: y, width: w, height: h)
+            if rect.width >= screen.width * 0.9, rect.height >= screen.height * 0.9 {
+                return true
+            }
+        }
+        return false
+    }
+
     func switchDesktop(_ direction: Direction) async -> String {
         guard !busy else { return "Still switching…" }
         busy = true
-        defer { busy = false }
+        Self.trace.debug("switch begin \((direction == .left ? "left" : "right") as String, privacy: .public)")
+        defer {
+            busy = false
+            Self.trace.debug("switch end")
+        }
 
         guard let sky = skyLight else {
             return "Desktop switching isn't available on this macOS"
@@ -199,20 +274,29 @@ final class SpaceSwitcher {
                                                 direction: direction) else {
             return direction == .left ? "No desktop to the left" : "No desktop to the right"
         }
-        let steps = Self.swipeSteps(in: display.spaces, from: display.current, to: target) ?? 1
+        let steps = 1 // the neighbor is adjacent by construction now
 
-        postDockSwipe(direction: direction, steps: steps)
+        // A leftover overlay would eat the keys; clear it first.
+        if Self.missionControlIsOpen() {
+            Self.trace.debug("clearing a leftover mission control")
+            await dismissMissionControl()
+            try? await Task.sleep(nanoseconds: 400_000_000)
+        }
 
-        // Verified, not assumed — and meaningful again: nothing here writes
-        // the window server's state, so a changed current space can only be
-        // Dock actually having switched. Re-read the same display each poll.
-        for _ in 0..<8 {
-            try? await Task.sleep(nanoseconds: 120_000_000)
+        await postCtrlArrows(direction: direction, steps: steps)
+
+        // Verified, not assumed — and meaningful: nothing here writes the
+        // window server's state, so a changed current space can only be the
+        // system actually having switched. The window is generous because
+        // the route itself takes ~1.5 s of animations.
+        for _ in 0..<10 {
+            try? await Task.sleep(nanoseconds: 250_000_000)
             if let now = readDisplays(sky),
                now.first(where: { $0.identifier == display.identifier })?.current == target {
                 return direction == .left ? "Desktop left" : "Desktop right"
             }
         }
+        await dismissMissionControl()
         return "Desktop didn't switch"
     }
 }

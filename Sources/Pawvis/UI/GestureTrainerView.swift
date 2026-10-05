@@ -374,7 +374,7 @@ struct GestureTrainerView: View {
             TextField("Name — e.g. Finger snap", text: $model.name)
                 .textFieldStyle(.roundedBorder)
 
-            Text(model.statusLine)
+            Text(LocalizedStringKey(model.statusLine))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

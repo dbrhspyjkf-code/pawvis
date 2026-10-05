@@ -402,19 +402,20 @@ func runSelfTest() -> Int32 {
           AutopilotPolicy.shouldAbortNoProgress([stuck, stuck, stuck]))
 
     // Desktop switching steps between *desktops*: the window server's ring
-    // mixes user desktops (type 0) with full-screen app spaces (type 4),
-    // and stepping into someone's full-screen window reads as window
-    // shuffling, not desktop switching (measured: the reported symptom).
+    // mixes user desktops (type 0) with full-screen app spaces (type 4).
+    // The neighbor is adjacent, whatever it is — the system trackpad
+    // swipe's own semantics (this used to skip full-screen spaces; field
+    // use asked for the plain ring walk instead).
     let ring: [SpaceSwitcher.Space] = [
         .init(id: 1, isDesktop: true), .init(id: 40, isDesktop: false),
         .init(id: 2, isDesktop: true), .init(id: 41, isDesktop: false),
         .init(id: 3, isDesktop: true),
     ]
-    check("spaces.rightSkipsFullscreen",
-          SpaceSwitcher.neighborDesktop(in: ring, active: 1, direction: .right) == 2)
-    check("spaces.leftSkipsFullscreen",
-          SpaceSwitcher.neighborDesktop(in: ring, active: 3, direction: .left) == 2)
-    check("spaces.fullscreenExitsToNearestDesktop",
+    check("spaces.rightEntersFullscreen",
+          SpaceSwitcher.neighborDesktop(in: ring, active: 1, direction: .right) == 40)
+    check("spaces.leftEntersFullscreen",
+          SpaceSwitcher.neighborDesktop(in: ring, active: 3, direction: .left) == 41)
+    check("spaces.fullscreenExitsToAdjacentSpace",
           SpaceSwitcher.neighborDesktop(in: ring, active: 41, direction: .left) == 2)
     check("spaces.edgeReportsNoNeighbor",
           SpaceSwitcher.neighborDesktop(in: ring, active: 1, direction: .left) == nil)
@@ -482,7 +483,7 @@ func runSelfTest() -> Int32 {
         // index is not one of them (it already drives the left button). Every
         // custom gesture ships a pose too — the gallery and the guide both
         // draw them.
-        let poses = ["take-control", "move", "click", "drag", "scroll", "stop-tracking"]
+        let poses = ["take-control", "move", "click", "drag", "scroll", "zoom", "stop-tracking"]
             + Finger.allCases.filter { $0 != .index }.map { "right-click-\($0.rawValue)" }
             + CustomGesture.allCases.map(\.glyphName)
         for name in poses {
@@ -491,7 +492,7 @@ func runSelfTest() -> Int32 {
         // The guide's whole-gesture panels (`full-*`), one per row it can
         // show — same fallback story, same reason to assert.
         let panels = ["full-take-control", "full-move", "full-click", "full-drag",
-                      "full-scroll", "full-stop-tracking", "full-wiggle",
+                      "full-scroll", "full-zoom", "full-stop-tracking", "full-wiggle",
                       "full-wiggle-pointed", "full-thumbs", "full-shaka", "full-grab"]
             + Finger.allCases.filter { $0 != .index }.map { "full-right-click-\($0.rawValue)" }
         for name in panels {

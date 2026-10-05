@@ -417,7 +417,7 @@ private func drawPanel(
                 in: Demo.panel, color: .white)
     }
     guard lesson == .rightClick else { return }
-    let caption = Text(PracticeDemo.name(of: finger))
+    let caption = Text(LocalizedStringKey(PracticeDemo.name(of: finger)))
         .font(.system(size: 8, weight: .medium))
         .foregroundStyle(Color.white.opacity(0.45))
     context.draw(caption, at: CGPoint(x: Demo.panel.midX, y: Demo.panel.maxY + 2), anchor: .top)

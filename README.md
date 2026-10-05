@@ -95,6 +95,16 @@ Mouse**.
   then move your hand up and down. The cursor parks while the pose is held.
   Settings has the toggle, a scroll speed slider, optional horizontal
   scrolling for sideways movement, and an invert switch (vertical only).
+- **Pinch zoom**: show **both hands open at once**, fingers up and palms
+  facing each other, and the cursor parks with a violet ring: you are
+  holding a zoom. Move your hands apart to zoom in, together to zoom out,
+  wherever the trackpad pinch works (Photos, Preview, maps, PDFs,
+  browsers). Bring your hands all the way together and the view springs
+  back to its original size. Close either hand to let go. Keep the fingers together rather
+  than spread wide (spread fingers belong to the stop-tracking wave), and
+  both hands must be genuinely open, so a resting hand beside an open one
+  never trips it. Settings → Mouse has the toggle and a zoom speed slider;
+  it's on by default.
 - **Stop tracking**: hold up **both hands** open with fingers spread wide, like
   a double high-five, then wave them across each other. Once they have traded
   sides twice (over and back), hand tracking switches off entirely, the same

@@ -12,11 +12,11 @@ public enum ThereminWaveform: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .classic: return "Classic"
-        case .sine: return "Sine"
-        case .triangle: return "Triangle"
-        case .sawtooth: return "Sawtooth"
-        case .square: return "Square"
+        case .classic: return String(localized: "Classic")
+        case .sine: return String(localized: "Sine")
+        case .triangle: return String(localized: "Triangle")
+        case .sawtooth: return String(localized: "Sawtooth")
+        case .square: return String(localized: "Square")
         }
     }
 }
@@ -30,8 +30,8 @@ public enum ThereminLayout: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .twoHands: return "Two hands (classic)"
-        case .oneHand: return "One hand"
+        case .twoHands: return String(localized: "Two hands (classic)")
+        case .oneHand: return String(localized: "One hand")
         }
     }
 }
@@ -51,14 +51,14 @@ public enum ThereminScale: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .free: return "Off (continuous)"
-        case .chromatic: return "Chromatic"
-        case .major: return "Major"
-        case .minor: return "Natural minor"
-        case .pentatonicMajor: return "Major pentatonic"
-        case .pentatonicMinor: return "Minor pentatonic"
-        case .blues: return "Blues"
-        case .wholeTone: return "Whole tone"
+        case .free: return String(localized: "Off (continuous)")
+        case .chromatic: return String(localized: "Chromatic")
+        case .major: return String(localized: "Major")
+        case .minor: return String(localized: "Natural minor")
+        case .pentatonicMajor: return String(localized: "Major pentatonic")
+        case .pentatonicMinor: return String(localized: "Minor pentatonic")
+        case .blues: return String(localized: "Blues")
+        case .wholeTone: return String(localized: "Whole tone")
         }
     }
 

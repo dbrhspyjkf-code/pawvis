@@ -177,7 +177,8 @@ final class GestureEngineTests: XCTestCase {
     func testTapWindowDefaults() {
         let c = GestureConfig.default
         XCTAssertEqual(c.dragStartDelay, 0.30, accuracy: 1e-9)
-        XCTAssertEqual(c.dragIntentDistance, 0.030, accuracy: 1e-9)
+        XCTAssertEqual(c.dragIntentDistance, 0.045, accuracy: 1e-9)
+        XCTAssertEqual(c.dragActivationDistance, 0.018, accuracy: 1e-9)
         XCTAssertEqual(c.jitterDeadband, 0.004, accuracy: 1e-9)
     }
 
@@ -599,7 +600,7 @@ final class GestureEngineTests: XCTestCase {
                                       from: 0.55, count: 3)).count, 1)
     }
 
-    func testDoubleTripleThenWrapChaining() {
+    func testDoubleThenWrapChaining() {
         feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
         let w = Vec2(0.5, 0.7)
 
@@ -609,11 +610,46 @@ final class GestureEngineTests: XCTestCase {
         let c2 = tapClick(at: w, from: 0.30)
         XCTAssertEqual(downs(c2).map(\.1), [2], "quick second click chains to double")
 
+        // The chain stops at two: an in-air third dip is almost always a
+        // bounce, and chained triples made Photos flip and flip back.
         let c3 = tapClick(at: w, from: 0.50)
-        XCTAssertEqual(downs(c3).map(\.1), [3], "third chains to triple")
+        XCTAssertEqual(downs(c3).map(\.1), [1], "a third dip starts a fresh chain")
 
         let c4 = tapClick(at: w, from: 0.70)
-        XCTAssertEqual(downs(c4).map(\.1), [1], "after a triple the chain restarts")
+        XCTAssertEqual(downs(c4).map(\.1), [2], "and the next one pairs again")
+    }
+
+    func testAirPacedSecondClickChains() {
+        // The chain never outruns the SYSTEM's double-click window; lift it
+        // here so this test measures the engine's own window, not the host
+        // machine's Universal Access setting.
+        let savedSystemWindow = GestureEngine.systemDoubleClickWindow
+        GestureEngine.systemDoubleClickWindow = 2.0
+        defer { GestureEngine.systemDoubleClickWindow = savedSystemWindow }
+        // The in-air pacing a hand actually manages: a little over half a
+        // second between dips (the release debounce eats into the old
+        // 0.45 s window) and 3% of screen drift from the palm settling —
+        // both outside the mouse ballpark, both inside the widened window.
+        feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
+        _ = tapClick(at: Vec2(0.50, 0.7), from: 0.1)
+        feedFrames([SyntheticHand.mouseTap(indexDown: false, wrist: Vec2(0.53, 0.7))], from: 0.30, count: 3)
+        let c2 = tapClick(at: Vec2(0.53, 0.7), from: 0.78)
+        XCTAssertEqual(downs(c2).map(\.1), [2], "air-paced second click chains to double")
+    }
+
+    func testReboundingSecondDipChains() {
+        // The double-click's second dip lands while the palm is still
+        // settling from the first click — moving faster than the sweep
+        // gate allows. The window-and-slop pair exempts it: a deliberate
+        // double-click must not depend on the hand being pinned still.
+        feedFrames([SyntheticHand.mouseTap(indexDown: false)], from: 0, count: 3)
+        _ = tapClick(at: Vec2(0.5, 0.7), from: 0.1)
+        // The hand travels a little between clicks (inside the slop) —
+        // fast enough that the raw sweep gate would trip.
+        feedFrames([SyntheticHand.mouseTap(indexDown: false, wrist: Vec2(0.52, 0.7))],
+                   from: 0.30, count: 3)
+        let c2 = tapClick(at: Vec2(0.53, 0.7), from: 0.55)
+        XCTAssertEqual(downs(c2).map(\.1), [2], "a rebounding second dip still chains")
     }
 
     func testSlowSecondClickIsSingle() {
@@ -786,13 +822,18 @@ final class GestureEngineTests: XCTestCase {
 
     func testHoldingPastTheTapWindowLetsWobbleDrag() {
         let downAt = beginTapPress(at: Vec2(0.5, 0.7), from: 0.1)
+        // 1.5% wobble: a floating hand's drift — inside BOTH the intent
+        // distance and the float-tolerant activation, so a click survives.
         let wobbled = SyntheticHand.mouseTap(indexDown: true, wrist: Vec2(0.515, 0.7))
         XCTAssertTrue(drags(feedFrames([wobbled], from: 0.2, count: 3)).isEmpty)
 
-        // Same offset once the window has expired: the ordinary activation
-        // distance applies, so the held tap becomes a grab.
+        // The same drift after the window is STILL just drift (under the
+        // 1.8% float tolerance); a deliberate move (2.5%) is what grabs.
         let after = feedFrames([wobbled], from: 0.5, count: 2)
-        XCTAssertEqual(drags(after).count, 1, "one drag to the wobbled point, then it holds still")
+        XCTAssertTrue(drags(after).isEmpty, "floating 1.5% never becomes a drag")
+        let deliberate = feedFrames([SyntheticHand.mouseTap(indexDown: true, wrist: Vec2(0.525, 0.7))],
+                                    from: 0.55, count: 2)
+        XCTAssertEqual(drags(deliberate).count, 1, "a deliberate 2.5% move starts the drag")
 
         let moved = feedFrames([SyntheticHand.mouseTap(indexDown: true, wrist: Vec2(0.565, 0.7))],
                                from: 0.6, count: 2)

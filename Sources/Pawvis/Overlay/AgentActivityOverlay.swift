@@ -141,7 +141,7 @@ struct AgentSessionCard: View {
                 } else {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(Array(session.tail.suffix(5).enumerated()), id: \.offset) { _, line in
-                            Text(line)
+                            Text(LocalizedStringKey(line))
                                 .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1)
@@ -149,7 +149,7 @@ struct AgentSessionCard: View {
                     }
                 }
             case .finished(_, let message):
-                Text(message)
+                Text(LocalizedStringKey(message))
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(2)
             }

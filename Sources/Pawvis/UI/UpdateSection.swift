@@ -41,7 +41,7 @@ struct UpdateSection: View {
                 if case .checking = updater.state {
                     ProgressView().controlSize(.small)
                 }
-                Text(statusText)
+                Text(LocalizedStringKey(statusText))
                     .font(.caption)
                     .foregroundStyle(statusColor)
                     .fixedSize(horizontal: false, vertical: true)
@@ -83,7 +83,7 @@ struct UpdateSection: View {
     @ViewBuilder
     private func availableBox(_ release: UpdateChecker.Release) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Pawvis \(release.version.description) is available")
+            Text(LocalizedStringKey(L("Pawvis %@ is available", release.version.description)))
                 .font(.callout.weight(.semibold))
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -121,7 +121,7 @@ struct UpdateSection: View {
         switch updater.state {
         case .idle:
             guard let last = updater.lastChecked else { return "Not checked yet" }
-            return "Last checked \(Self.relative.localizedString(for: last, relativeTo: Date()))"
+            return L("Last checked %@", Self.relative.localizedString(for: last, relativeTo: Date()))
         case .checking: return "Checking…"
         case .upToDate: return "Pawvis is up to date"
         case .available: return ""

@@ -19,9 +19,9 @@ public enum ControlTrigger: String, Codable, CaseIterable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .openHand: return "Open hand"
-        case .anyHand: return "Any detected hand"
-        case .gesturesOnly: return "Never — custom gestures only"
+        case .openHand: return String(localized: "Open hand")
+        case .anyHand: return String(localized: "Any detected hand")
+        case .gesturesOnly: return String(localized: "Never — custom gestures only")
         }
     }
 }
@@ -140,6 +140,35 @@ public struct GestureConfig: Codable, Equatable, Sendable {
     /// screen-length wheel steps.
     public static let scrollGainRange: ClosedRange<Double> = 0.5...5.0
 
+    // MARK: Pinch zoom
+    /// Pinch with both hands — thumb and index tips together on each — then
+    /// move them apart to zoom in and together to zoom out, wherever the
+    /// trackpad pinch works (Photos, Preview, maps, PDFs). The cursor parks
+    /// while the pose is held. On by default, like the scroll pose: two
+    /// simultaneous pinches are never an accident.
+    public var zoomEnabled: Bool = true
+    /// Magnification per screen-normalized unit of hand spread — the Zoom
+    /// speed slider. The engine emits normalized deltas; the app's posting
+    /// layer multiplies this in, exactly like `scrollGain`.
+    public var zoomGain: Double = 1.5
+    /// The Zoom speed slider's range, same clamping story as
+    /// `scrollGainRange`.
+    public static let zoomGainRange: ClosedRange<Double> = 0.5...5.0
+
+    // MARK: Hover anchoring
+    /// Park the cursor once the hand holds still for a moment: while
+    /// anchored, the hand's small tremor moves the cursor not at all, so
+    /// hovering a small target (a next-photo arrow) survives the shake.
+    /// A deliberate move (past the release radius) breaks the pin at once.
+    /// On by default; pairs with clicking the pinned target.
+    public var hoverAnchoringEnabled: Bool = true
+    /// How long the hand must hold still before the cursor pins.
+    public var hoverAnchoringSeconds: TimeInterval = 0.6
+    /// How far the hand may drift while pinned (screen-normalized); past
+    /// this the pin breaks and the cursor follows again. Sized between a
+    /// tremor and a deliberate move.
+    public var hoverAnchoringReleaseRadius: Double = 0.025
+
     // MARK: Dwell click
     /// Click by holding still: with cursor control armed and no button down,
     /// keeping the cursor inside a small radius for `dwellSeconds` emits one
@@ -163,22 +192,35 @@ public struct GestureConfig: Codable, Equatable, Sendable {
 
     // MARK: Click timing
     /// Two clicks within this interval (and within `doubleClickSlop`) become a
-    /// double-click (macOS default ballpark).
-    public var doubleClickInterval: TimeInterval = 0.45
+    /// double-click. A hand in the air needs a longer beat between dips than a
+    /// mouse button ever did — the release debounce eats ~130 ms of the window
+    /// on its own — so this rides above the macOS ballpark; apps see the
+    /// chained clickCount, not the timing, so the extra room costs nothing.
+    public var doubleClickInterval: TimeInterval = 0.60
     /// Max cursor travel (screen-normalized) between clicks that still chains
-    /// into a double-click.
-    public var doubleClickSlop: Double = 0.025
-    /// Cursor travel (screen-normalized) beyond which a pinch starts dragging.
-    /// Below this the cursor holds still, so quick clicks don't micro-drag.
-    public var dragActivationDistance: Double = 0.010
+    /// into a double-click. In-air hands drift between dips no mouse ever
+    /// does; 4% of the screen is still smaller than neighboring targets, so
+    /// the wider tolerance buys chaining without fusing distinct clicks.
+    public var doubleClickSlop: Double = 0.080
+    /// Cursor travel (screen-normalized) beyond which a press starts
+    /// dragging once the tap window has passed. Below this the cursor
+    /// holds still, so a held click doesn't micro-drag. 0.018, not the
+    /// historical 0.010: an in-air hand at rest drifts 1-2% between dips,
+    /// and at 0.010 every unsteady first press became a phantom drag,
+    /// which unwound double-clicks wholesale (measured with clickTrace:
+    /// presses that moved >1% while held never delivered a click).
+    public var dragActivationDistance: Double = 0.018
     /// Tap window: for this long after the button goes down, nothing drags and
     /// the cursor stays pinned at the press point. Movement alone was starting
     /// drags, which turned nearly every quick click into a micro-drag — a hand
     /// in the air always drifts a little while the fingers close and open.
     public var dragStartDelay: TimeInterval = 0.30
-    /// Travel inside the tap window that means the drag is deliberate (a flick,
-    /// not press wobble), starting the drag immediately.
-    public var dragIntentDistance: Double = 0.030
+    /// Travel inside the tap window that means the drag is deliberate (a
+    /// flick, not press wobble), starting the drag immediately. 0.045, not
+    /// the historical 0.030: a floating hand crosses 3% while the finger
+    /// is still coming down, and a deliberate flick crosses it easily
+    /// either way.
+    public var dragIntentDistance: Double = 0.045
     /// Minimum travel between emitted drag positions. Overlapping fingertips
     /// confuse Vision, so a held pinch shivers by a fraction of a percent;
     /// re-emitting that shiver reads as a shaking drag. Plain moves use half
@@ -218,12 +260,36 @@ public struct GestureConfig: Codable, Equatable, Sendable {
 
     public static let `default` = GestureConfig()
 
+    /// Double-click tuning history: (0.45 s, 0.025) shipped originally,
+    /// (0.60, 0.040) and (0.75, 0.040) followed; measured in-air pacing
+    /// between dips runs 0.68-0.83 s with drift to 0.028, so the live
+    /// default is (1.0 s, 0.050). A stored value sitting exactly on a
+    /// retired pair was never hand-tuned — the slider-less fields only
+    /// ever held defaults — and rides up with the retune.
+    public static let retiredDoubleClickPairs: [(interval: TimeInterval, slop: Double)] =
+        [(0.45, 0.025), (0.60, 0.040), (0.75, 0.040), (1.0, 0.050), (1.2, 0.070)]
+
+    /// Adopts the retuned double-click defaults for settings still sitting
+    /// on any retired pair.
+    public mutating func adoptRetunedDoubleClickDefaults() {
+        if Self.retiredDoubleClickPairs.contains(where: {
+            $0.interval == doubleClickInterval && $0.slop == doubleClickSlop
+        }) {
+            doubleClickInterval = GestureConfig().doubleClickInterval
+            doubleClickSlop = GestureConfig().doubleClickSlop
+        }
+        if dragActivationDistance == 0.010 { dragActivationDistance = 0.018 }
+        if dragIntentDistance == 0.030 { dragIntentDistance = 0.045 }
+    }
+
     enum CodingKeys: String, CodingKey {
         case controlTrigger
         case pinchEngageRatio, pinchReleaseHysteresis, pinchDebounceFrames
         case rightClickEnabled, rightClickFinger
         case middleClickEnabled, middleClickFinger
         case scrollEnabled, scrollInvert, scrollAxes, scrollGain
+        case zoomEnabled, zoomGain
+        case hoverAnchoringEnabled, hoverAnchoringSeconds, hoverAnchoringReleaseRadius
         case dwellClickEnabled, dwellSeconds
         case crissCrossDisableEnabled, crissCrossDisableCrossings
         case doubleClickInterval, doubleClickSlop, dragActivationDistance
@@ -282,6 +348,19 @@ public struct GestureConfig: Codable, Equatable, Sendable {
             // Clamped to the slider's range, not trusted verbatim: the gain
             // multiplies straight into posted wheel pixels.
             scrollGain = min(max(v, Self.scrollGainRange.lowerBound), Self.scrollGainRange.upperBound)
+        }
+        if let v = try? c.decodeIfPresent(Bool.self, forKey: .zoomEnabled) { zoomEnabled = v }
+        if let v = try? c.decodeIfPresent(Bool.self, forKey: .hoverAnchoringEnabled) { hoverAnchoringEnabled = v }
+        if let v = try? c.decodeIfPresent(TimeInterval.self, forKey: .hoverAnchoringSeconds) {
+            hoverAnchoringSeconds = v.clamped(to: 0.2...2.0)
+        }
+        if let v = try? c.decodeIfPresent(Double.self, forKey: .hoverAnchoringReleaseRadius) {
+            hoverAnchoringReleaseRadius = v.clamped(to: 0.01...0.06)
+        }
+        if let v = try? c.decodeIfPresent(Double.self, forKey: .zoomGain) {
+            // Same reasoning as scrollGain: the gain multiplies straight
+            // into posted magnification.
+            zoomGain = v.clamped(to: Self.zoomGainRange)
         }
         if let v = try? c.decodeIfPresent(Bool.self, forKey: .dwellClickEnabled) { dwellClickEnabled = v }
         if let v = try? c.decodeIfPresent(TimeInterval.self, forKey: .dwellSeconds) {
@@ -353,5 +432,6 @@ public struct GestureConfig: Codable, Equatable, Sendable {
         if let v = try? c.decodeIfPresent(InteractionBox.self, forKey: .interactionBox) { interactionBox = v }
         if let v = try? c.decodeIfPresent(ReachMode.self, forKey: .reachMode) { reachMode = v }
         if let v = try? c.decodeIfPresent(Bool.self, forKey: .mirrorCamera) { mirrorCamera = v }
+        adoptRetunedDoubleClickDefaults()
     }
 }

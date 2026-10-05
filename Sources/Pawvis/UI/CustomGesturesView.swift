@@ -71,7 +71,7 @@ struct CustomGesturesTab: View {
 
     private func familySection(_ family: CustomGesture.Family) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(family.displayName).font(.title3.bold())
+            Text(LocalizedStringKey(family.displayName)).font(.title3.bold())
             CaptionText(family.blurb)
             ForEach(CustomGesture.allCases.filter { $0.family == family }, id: \.self) { gesture in
                 CustomGestureRow(store: store, gesture: gesture)
@@ -105,7 +105,7 @@ private struct CustomGestureRow: View {
                 .frame(width: 44)
                 .opacity(isLive ? 1 : 0.45)
             VStack(alignment: .leading, spacing: 6) {
-                Text(gesture.displayName)
+                Text(LocalizedStringKey(gesture.displayName))
                     .font(.headline)
                     .foregroundStyle(isLive ? .primary : .secondary)
                 CaptionText(gesture.howTo)
@@ -225,7 +225,7 @@ struct GestureActionPicker: View {
                 ForEach(GestureAction.Category.allCases, id: \.self) { category in
                     Section(category.displayName) {
                         ForEach(kinds(in: category), id: \.self) { kind in
-                            Text(kind.displayName).tag(GestureAction.Kind?.some(kind))
+                            Text(LocalizedStringKey(kind.displayName)).tag(GestureAction.Kind?.some(kind))
                         }
                     }
                 }
@@ -290,7 +290,7 @@ struct GestureActionPicker: View {
             guard let chord = ShortcutParser.chord(from: trimmed) else {
                 return "Not understood yet — try something like cmd+shift+t."
             }
-            return "Presses \(ShortcutParser.display(chord))."
+            return L("Presses %@.", ShortcutParser.display(chord))
         case .runShellCommand:
             return "Runs in zsh as you, exactly as typed, the moment the gesture fires."
         case .openApp:
@@ -331,7 +331,7 @@ struct PerAppActionsEditor: View {
         } label: {
             Text(overrides.isEmpty
                  ? "Per-app actions"
-                 : "Per-app actions · \(overrides.count)")
+                 : L("Per-app actions · %d", overrides.count))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -463,7 +463,7 @@ private struct TrainedGestureImportExportRow: View {
             guard response == .OK, let url = panel.url else { return }
             do {
                 try data.write(to: url, options: .atomic)
-                feedback = "Exported \(gestures.count) gesture\(gestures.count == 1 ? "" : "s")"
+                feedback = L("Exported %d gestures", gestures.count)
             } catch {
                 feedback = "Couldn't write the file: \(error.localizedDescription)"
             }
@@ -499,8 +499,8 @@ private struct TrainedGestureImportExportRow: View {
     private func summary(for result: TrainedGestureImport.Result) -> String {
         let count = result.added.count
         let noun = count == 1 ? "gesture" : "gestures"
-        guard result.renamedCount > 0 else { return "Imported \(count) \(noun)" }
-        return "Imported \(count) \(noun) (\(result.renamedCount) renamed)"
+        guard result.renamedCount > 0 else { return L("Imported %d %@", count, noun) }
+        return L("Imported %d %@ (%d renamed)", count, noun, result.renamedCount)
     }
 }
 
@@ -550,7 +550,7 @@ private struct TrainedGestureRow: View {
                             .help("Rename")
                         }
                         Spacer()
-                        Text(gesture.handCount == 2 ? "Two hands" : "One hand")
+                        Text(gesture.handCount == 2 ? L("Two hands") : L("One hand"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button {

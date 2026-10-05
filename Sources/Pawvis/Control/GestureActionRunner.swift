@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 import Foundation
 import PawvisCore
 
@@ -21,9 +22,39 @@ final class GestureActionRunner {
     private let placer = WindowPlacer()
     private let spaces = SpaceSwitcher()
 
+    /// True while a desktop-switch sequence is mid-flight (the controller
+    /// silences mouse output for its duration).
+    var spaceSwitchInFlight: Bool { spaces.busy }
+
+    /// One step of pinch-zoom at the pointer: a short magnify stream
+    /// (began / changed / ended) through the same CGEvent layout the
+    /// two-palm zoom posts. ~0.6 of magnification per step — a visible
+    /// notch on photos, maps, PDFs, wherever the trackpad pinch works.
+    private func postZoomStep(inward: Bool) {
+        let per = 0.1
+        let steps = 6
+        let sign: Double = inward ? 1 : -1
+        func post(_ phase: ZoomPhase, _ delta: Double) {
+            guard let e = CGEvent(source: nil) else { return }
+            e.type = CGEventType(rawValue: 29)!
+            e.setIntegerValueField(CGEventField(rawValue: 110)!, value: 8)
+            e.setDoubleValueField(CGEventField(rawValue: 113)!, value: delta)
+            e.setIntegerValueField(CGEventField(rawValue: 132)!, value: phase.hidPhase)
+            e.post(tap: .cghidEventTap)
+            usleep(20_000) // past the pacing floor
+        }
+        post(.began, 0)
+        for _ in 0..<steps { post(.changed, sign * per) }
+        post(.ended, 0)
+    }
+
     /// Perform the action; the return value is what the status pill flashes.
     func perform(_ action: GestureAction) -> String {
         switch action.kind {
+        case .zoomIn, .zoomOut:
+            postZoomStep(inward: action.kind == .zoomIn)
+            return action.feedback
+
         case .playPause:
             typer.press(MediaKey.playPause)
             return action.feedback
@@ -57,14 +88,14 @@ final class GestureActionRunner {
                 guard let self else { return }
                 self.onFollowUp?(await self.spaces.switchDesktop(direction))
             }
-            return action.kind == .desktopLeft ? "Desktop left…" : "Desktop right…"
+            return action.kind == .desktopLeft ? L("Desktop left…") : L("Desktop right…")
 
         case .windowLeftHalf, .windowRightHalf, .windowTopHalf, .windowBottomHalf,
              .windowLeftTwoThirds, .windowRightTwoThirds, .windowLeftThird, .windowRightThird,
              .windowTopLeftQuarter, .windowTopRightQuarter,
              .windowBottomLeftQuarter, .windowBottomRightQuarter,
              .windowMaximize, .windowCenter, .windowMinimize, .windowNextDisplay:
-            return placer.perform(action.kind) ? action.feedback : "No window to move"
+            return placer.perform(action.kind) ? action.feedback : L("No window to move")
 
         case .stopTracking:
             stopTracking?()
@@ -82,7 +113,7 @@ final class GestureActionRunner {
 
         case .keyboardShortcut:
             guard let chord = action.keyChord, TextTyper.canPress(chord) else {
-                return "Shortcut “\(action.argument)” not understood"
+                return L("Shortcut “%@” not understood", action.argument)
             }
             typer.press(chord)
             return action.feedback
@@ -97,9 +128,9 @@ final class GestureActionRunner {
 
     private func openApp(named name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return "No app configured" }
+        guard !trimmed.isEmpty else { return L("No app configured") }
         guard let url = AppCatalog.resolve(spokenName: trimmed) else {
-            return "Couldn't find “\(trimmed)”"
+            return L("Couldn't find “%@”", trimmed)
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
@@ -108,7 +139,7 @@ final class GestureActionRunner {
                 Log.app.error("Gesture openApp \(trimmed) failed: \(error.localizedDescription)")
             }
         }
-        return "Opening \(url.deletingPathExtension().lastPathComponent)"
+        return L("Opening %@", url.deletingPathExtension().lastPathComponent)
     }
 
     /// Fire-and-forget through a login shell, so the user's PATH (brew and
@@ -116,7 +147,7 @@ final class GestureActionRunner {
     /// hatch, and it runs exactly what was typed into Settings, as the user.
     private func runShellCommand(_ command: String) -> String {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "No command configured" }
+        guard !trimmed.isEmpty else { return L("No command configured") }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
         process.arguments = ["-lc", trimmed]
@@ -131,9 +162,9 @@ final class GestureActionRunner {
             try process.run()
         } catch {
             Log.app.error("Gesture command failed to launch: \(error.localizedDescription)")
-            return "Command failed to launch"
+            return L("Command failed to launch")
         }
         let summary = trimmed.count > 32 ? String(trimmed.prefix(32)) + "…" : trimmed
-        return "Ran: \(summary)"
+        return L("Ran: %@", summary)
     }
 }
