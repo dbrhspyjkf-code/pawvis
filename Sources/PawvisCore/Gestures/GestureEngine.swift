@@ -1003,11 +1003,18 @@ public final class GestureEngine {
     private static let doubleClickMinGap: TimeInterval = 0.03
 
     static var systemDoubleClickWindow: TimeInterval = {
-        let v = CFPreferencesCopyValue(
-            "com.apple.mouse.doubleClickThreshold" as CFString,
-            "com.apple.universalaccess" as CFString,
-            kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Double
-        return v ?? 0.5
+        // The threshold lives in .GlobalPreferences when the user has slid
+        // the double-click speed at all (measured: 0.8 s there); the
+        // universal-access copy only appears on some versions. Read both.
+        for domain in [".GlobalPreferences", "com.apple.universalaccess"] {
+            if let v = CFPreferencesCopyValue(
+                "com.apple.mouse.doubleClickThreshold" as CFString,
+                domain as CFString,
+                kCFPreferencesCurrentUser, kCFPreferencesAnyHost) as? Double {
+                return v
+            }
+        }
+        return 0.5
     }()
 
     /// How much shallower a second dip may read and still click, inside
