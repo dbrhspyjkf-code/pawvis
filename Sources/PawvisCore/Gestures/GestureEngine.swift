@@ -36,6 +36,8 @@ import os
 public final class GestureEngine {
 
     private static let clickTrace = Logger(subsystem: "com.pawvis.Pawvis", category: "clickTrace")
+    private static let stateTrace = Logger(subsystem: "com.pawvis.Pawvis", category: "stateTrace")
+    private var lastStateTraceAt: TimeInterval = 0
 
     public var config: GestureConfig {
         didSet {
@@ -755,6 +757,22 @@ public final class GestureEngine {
         // open in frame — a regression the pinch design needed and this
         // pose cannot.
         let zoomBlocked = zoom.active
+        if frame.time - lastStateTraceAt > 0.3 {
+            lastStateTraceAt = frame.time
+            let armedNow = armed
+            let zoomNow = zoom.active
+            let pinnedNow = hoverAnchor != nil
+            let scrollNow = scroll.active
+            let handDescs = tracked.map { th -> String in
+                let f = looseFeatures(of: th.hand)
+                let curled = f?.curledFingerCount().description ?? "?"
+                let open = f?.isOpenHand() == true ? "1" : "0"
+                let openness = f?.openness().map { String(format: "%.2f", $0) } ?? "?"
+                let splay = f?.splayAmount().map { String(format: "%.2f", $0) } ?? "?"
+                return "curled=\(curled) open=\(open) op=\(openness) splay=\(splay)"
+            }.joined(separator: " | ")
+            Self.stateTrace.debug("armed=\(armedNow, privacy: .public) zoom=\(zoomNow, privacy: .public) pin=\(pinnedNow, privacy: .public) scroll=\(scrollNow, privacy: .public) [\(handDescs, privacy: .public)]")
+        }
         let ratio = armed ? clickRatio(features) : nil
         if armed, frame.time - lastClickTraceAt > 0.2 {
             lastClickTraceAt = frame.time
@@ -932,7 +950,14 @@ public final class GestureEngine {
             armFrames = 0
             let pressing = press != nil || leftButton.engaged || rightButton.engaged
                 || middleButton.engaged
-            guard !pressing, features.curledFingerCount() >= 3 else {
+            // A zoom holds the same protection a press does: the pose's
+            // fingers curl as the hands ease out of it, and reading that
+            // transition as the disarm fist stranded control until the
+            // user re-performed the whole open-hand ceremony (measured:
+            // armed=false 1.4 s after zoom=false, curled=0 — the ease-out,
+            // not a fist).
+            let zooming = zoom.active || lastHandTime - zoomReleasedAt < 1.5
+            guard !pressing, !zooming, features.curledFingerCount() >= 3 else {
                 disarmFrames = 0
                 return
             }
@@ -1240,9 +1265,12 @@ public final class GestureEngine {
     /// [] when no zoom is active, so callers can splice it unconditionally.
     /// The `.began` is always emitted at engage, so the phase pair is
     /// guaranteed complete.
+    private var zoomReleasedAt: TimeInterval = -.infinity
+
     private func endZoomIfActive() -> [GestureEvent] {
         guard zoom.active else { return [] }
         zoom = ZoomState()
+        zoomReleasedAt = lastHandTime
         return [.zoom(delta: 0, phase: .ended)]
     }
 
