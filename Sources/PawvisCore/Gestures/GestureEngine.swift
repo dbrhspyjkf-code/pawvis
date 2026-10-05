@@ -1169,9 +1169,20 @@ public final class GestureEngine {
     /// once and the modes can never steal each other's engage.
     private func handIsZoomPose(_ features: HandFeatures?) -> Bool {
         guard let features else { return false }
-        guard features.isOpenHand() else { return false }
+        // Relaxed-open, not parade-open: the strict isOpenHand gate
+        // (openness ≥ 0.29, every PIP past the band) refused the hands
+        // people actually hold between zooms — state-trace showed open=0
+        // with the hand plainly up — and re-engaging a fresh zoom needed
+        // a ceremony every time. No curling finger at all, openness past
+        // a relaxed line, fingers not splayed wide: that is the pose.
+        guard features.curledFingerCount() == 0 else { return false }
+        guard let open = features.openness(), open >= 0.20 else { return false }
         guard let splay = features.splayAmount() else { return false }
-        return splay < config.poseThresholds.splayRatio
+        // 0.32 overlaps the wave's old 0.25 floor on purpose: this
+        // detector runs first and the wave stands down while a zoom is
+        // active, so the overlap belongs to the zoom (measured hands sit
+        // 0.25-0.35 with fingers merely at rest).
+        return splay < 0.32
     }
 
     /// The two-hand spread-zoom state machine: both hands open and relaxed,
