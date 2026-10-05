@@ -799,8 +799,13 @@ public final class GestureEngine {
             // second press must dip to the FULL bar: a real quick second
             // dip is a complete press and clears it; a bounce does not.
             let dtSinceUpNow = frame.time - lastUpTime
+            // Inside the immediate tail the bar rides the OTHER way: a real
+            // quick second dip is a full press (as deep as the first), so
+            // demanding extra depth keeps it and drops the shallow bounce
+            // that still slips past the plain bar now and then.
+            let tailGate = dtSinceUpNow < 0.12 ? -0.15 : 0
             let secondDipBoost = (doubleClicking && dtSinceUpNow >= 0.12)
-                ? Self.doubleClickEngageBoost : 0
+                ? Self.doubleClickEngageBoost : tailGate
             updateButton(.left, state: &leftButton, ratio: ratio,
                          engage: config.engageRatio + secondDipBoost,
                          release: config.releaseRatio + secondDipBoost,
