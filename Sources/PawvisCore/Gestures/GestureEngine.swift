@@ -1121,12 +1121,13 @@ public final class GestureEngine {
 
     /// A second dip may only ride the boosted engage bar while the hand
     /// never fully re-opened between the two presses: once the recovery
-    /// peak clears this line, the incoming contact is a settle graze, not
-    /// the second dip of a double-click (measured on a hand whose singles
-    /// chained: deliberate second dips peak at 0.67–0.83 with bottoms of
-    /// 0.23–0.27, while settle re-contacts peak at 0.89–0.915 with bottoms
-    /// of 0.90–0.915 — barely under the boosted bar). Re-opened means it
-    /// must press to the full depth of a first dip, or not click at all.
+    /// peak clears this line, the incoming contact loses the boost and
+    /// must dip past the plain bar. Measured on a hand whose relaxed
+    /// singles kept doubling: its deliberate second dips bottom at
+    /// 0.15-0.38 — deep enough for the plain bar however far the hand
+    /// re-opened (Photos-style doubles peak at 0.86-0.93), while settle
+    /// re-contacts graze at 0.90-0.915 after the same peaks and cannot
+    /// engage without the boost at all.
     private static let doubleClickReopenPeak: Double = 0.86
 
     private var lastPalmSample: (point: Vec2, time: TimeInterval)?
@@ -1726,10 +1727,6 @@ public final class GestureEngine {
            time - lastUpTime >= Self.doubleClickMinGap,
            time - lastUpTime <= min(config.doubleClickInterval, Self.systemDoubleClickWindow),
            pos.distance(to: lastUpPos) <= config.doubleClickSlop,
-           openPeakSinceUp < Self.doubleClickReopenPeak, // a re-opened hand is
-            // starting a new click, not riding a double: settle re-contacts
-            // graze shallow (bottoms 0.90+) and only ever chain through the
-            // boost, so this one gate retires the whole class
            lastUpClickCount < 2 { // hand-gesture double-click stops at two:
                                  // a third dip is almost always a bounce, and
                                  // chained triples made Photos flip and flip
