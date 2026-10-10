@@ -183,6 +183,11 @@ public final class GestureEngine {
         var engaged = false
         var engageFrames = 0
         var releaseFrames = 0
+        /// Measurement only: the deepest ratio reached while this press was
+        /// engaged, logged at UP so tuning can read real press depths from
+        /// the trace (a settle re-contact and a deliberate dip may differ
+        /// here even when every timing feature overlaps).
+        var minRatioWhileEngaged: Double = .infinity
     }
 
     /// The scroll pose's state: the same debounce-both-ways shape
@@ -403,6 +408,11 @@ public final class GestureEngine {
     private var lastUpTime: TimeInterval = -.infinity
     private var lastUpPos: Vec2 = .zero
     private var lastUpClickCount = 0
+    /// Measurement only: the highest (most-open) left ratio observed since
+    /// the last left UP — the recovery peak between two presses. A
+    /// deliberate second dip follows a hand that re-opened; a settle
+    /// re-contact never fully opened. Logged on the next DOWN, then zeroed.
+    private var openPeakSinceUp: Double = 0
 
     // MARK: - Public API
 
@@ -750,6 +760,7 @@ public final class GestureEngine {
         // "still double-clicking", so exactly that pair exempts the gate.
         let doubleClicking = frame.time - lastUpTime <= config.doubleClickInterval
             && cursor.map { $0.distance(to: lastUpPos) <= config.doubleClickSlop } == true
+            && openPeakSinceUp < Self.doubleClickReopenPeak
         let sweeping = !doubleClicking && palmSweeping(features, at: frame.time)
         // A trained gesture matching mid-dwell blocks new clicks when the
         // user gave trained gestures priority — the finger curl that IS the
@@ -782,6 +793,9 @@ public final class GestureEngine {
             Self.stateTrace.debug("armed=\(armedNow, privacy: .public) zoom=\(zoomNow, privacy: .public) pin=\(pinnedNow, privacy: .public) scroll=\(scrollNow, privacy: .public) pointed=\(pointedNow, privacy: .public) cur=\(curNow, privacy: .public) [\(handDescs, privacy: .public)]")
         }
         let ratio = armed ? clickRatio(features) : nil
+        if let ratio, !leftButton.engaged {
+            openPeakSinceUp = max(openPeakSinceUp, ratio)
+        }
         if armed, frame.time - lastClickTraceAt > 0.2 {
             lastClickTraceAt = frame.time
             let r = ratio.map { String(format: "%.3f", $0) } ?? "nil"
@@ -1105,6 +1119,16 @@ public final class GestureEngine {
     /// (~0.675 at default sensitivity) sits between them.
     private static let doubleClickEngageBoost = 0.24
 
+    /// A second dip may only ride the boosted engage bar while the hand
+    /// never fully re-opened between the two presses: once the recovery
+    /// peak clears this line, the incoming contact is a settle graze, not
+    /// the second dip of a double-click (measured on a hand whose singles
+    /// chained: deliberate second dips peak at 0.67–0.83 with bottoms of
+    /// 0.23–0.27, while settle re-contacts peak at 0.89–0.915 with bottoms
+    /// of 0.90–0.915 — barely under the boosted bar). Re-opened means it
+    /// must press to the full depth of a first dip, or not click at all.
+    private static let doubleClickReopenPeak: Double = 0.86
+
     private var lastPalmSample: (point: Vec2, time: TimeInterval)?
 
     /// Whether the palm is currently travelling too fast for a press to
@@ -1377,7 +1401,7 @@ public final class GestureEngine {
             guard !dwell.awaitingExit else { return } // still on the clicked spot
             guard time - dwell.settledAt >= config.dwellSeconds else { return }
             beginPress(.left, at: time, events: &events)
-            endPress(.left, at: time, events: &events)
+            endPress(.left, bottom: .infinity, at: time, events: &events)
             dwell.awaitingExit = true
         } else {
             // Settled somewhere new (or moved off the clicked spot): the
@@ -1654,6 +1678,7 @@ public final class GestureEngine {
             beginPress(button, at: time, events: &events)
         } else {
             state.engageFrames = 0
+            state.minRatioWhileEngaged = min(state.minRatioWhileEngaged, ratio)
             guard ratio > release else {
                 state.releaseFrames = 0
                 return
@@ -1662,7 +1687,8 @@ public final class GestureEngine {
             guard state.releaseFrames >= config.pinchDebounceFrames else { return }
             state.releaseFrames = 0
             state.engaged = false
-            endPress(button, at: time, events: &events)
+            endPress(button, bottom: state.minRatioWhileEngaged, at: time, events: &events)
+            state.minRatioWhileEngaged = .infinity
         }
     }
 
@@ -1700,6 +1726,10 @@ public final class GestureEngine {
            time - lastUpTime >= Self.doubleClickMinGap,
            time - lastUpTime <= min(config.doubleClickInterval, Self.systemDoubleClickWindow),
            pos.distance(to: lastUpPos) <= config.doubleClickSlop,
+           openPeakSinceUp < Self.doubleClickReopenPeak, // a re-opened hand is
+            // starting a new click, not riding a double: settle re-contacts
+            // graze shallow (bottoms 0.90+) and only ever chain through the
+            // boost, so this one gate retires the whole class
            lastUpClickCount < 2 { // hand-gesture double-click stops at two:
                                  // a third dip is almost always a bounce, and
                                  // chained triples made Photos flip and flip
@@ -1709,15 +1739,18 @@ public final class GestureEngine {
         press = PressState(button: button, downAt: pos, downTime: time, clickCount: clickCount)
         let dtSinceUp = time - lastUpTime
         let distSinceUp = pos.distance(to: lastUpPos)
-        Self.clickTrace.debug("DOWN t=\(time, format: .fixed(precision: 2), privacy: .public) pos=(\(pos.x, format: .fixed(precision: 3)),\(pos.y, format: .fixed(precision: 3)), privacy: .public) count=\(clickCount, privacy: .public) dt=\(dtSinceUp, format: .fixed(precision: 2), privacy: .public) dist=\(distSinceUp, format: .fixed(precision: 3), privacy: .public)")
+        let peakSinceUp = openPeakSinceUp
+        openPeakSinceUp = 0
+        Self.clickTrace.debug("DOWN t=\(time, format: .fixed(precision: 2), privacy: .public) pos=(\(pos.x, format: .fixed(precision: 3)),\(pos.y, format: .fixed(precision: 3)), privacy: .public) count=\(clickCount, privacy: .public) dt=\(dtSinceUp, format: .fixed(precision: 2), privacy: .public) dist=\(distSinceUp, format: .fixed(precision: 3), privacy: .public) peak=\(peakSinceUp, format: .fixed(precision: 3), privacy: .public)")
         events.append(.buttonDown(button, at: pos, clickCount: clickCount))
     }
 
-    private func endPress(_ button: MouseButton, at time: TimeInterval,
+    private func endPress(_ button: MouseButton, bottom: Double,
+                          at time: TimeInterval,
                           events: inout [GestureEvent]) {
         guard let p = press, p.button == button else { return }
         let pos = cursor ?? p.downAt
-        Self.clickTrace.debug("UP t=\(time, format: .fixed(precision: 2), privacy: .public) count=\(p.clickCount, privacy: .public)")
+        Self.clickTrace.debug("UP t=\(time, format: .fixed(precision: 2), privacy: .public) count=\(p.clickCount, privacy: .public) bottom=\(bottom, format: .fixed(precision: 3), privacy: .public)")
         events.append(.buttonUp(button, at: pos, clickCount: p.clickCount))
         if button == .left {
             // A right click in the middle of a double-click must neither chain
